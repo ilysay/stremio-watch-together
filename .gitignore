@@ -1,0 +1,17 @@
+# Secrets: never publish
+telemetry/cle-stats.txt
+
+# Build output (the exe is published as a GitHub release, not in the repository)
+build/
+bin/
+obj/
+StremioWT.exe
+*.pdb
+*.zip
+.vs/
+TestResults/
+*.user
+
+# Unrelated files kept in this folder
+*.mp4
+sons_sherlock/
