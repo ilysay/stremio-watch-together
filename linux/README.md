@@ -11,7 +11,7 @@ Same rooms, same invite codes: Linux and Windows friends watch together.
 
 ![Beta](https://img.shields.io/badge/status-beta-f5a623?style=flat-square)
 ![Linux x64](https://img.shields.io/badge/Linux-x64%20%7C%20arm64-0c2048?style=flat-square&logo=linux&logoColor=white)
-![Stremio 4](https://img.shields.io/badge/Stremio-4%20(.deb%20or%20Flatpak)-0c2048?style=flat-square)
+![Stremio 4](https://img.shields.io/badge/Stremio-4%20(.deb)-0c2048?style=flat-square)
 ![Works with Windows](https://img.shields.io/badge/rooms-Windows%20%E2%86%94%20Linux-0c2048?style=flat-square)
 
 <img src="../docs/linux/preview-linux.png" width="760" alt="The Linux app: home screen and a room with friends chatting">
@@ -38,15 +38,17 @@ Same rooms, same invite codes: Linux and Windows friends watch together.
 
 ## Install
 
-**1.** Install **Stremio 4 for Linux**, if you don't have it. The **Flatpak** is the most reliable (the `.deb` from [stremio.com/downloads](https://www.stremio.com/downloads) can fail on recent Ubuntu):
+**1.** Install **Stremio 4 for Linux** (the `.deb`):
 
 ```bash
-sudo apt install flatpak
-flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install flathub com.stremio.Stremio
+wget https://dl.strem.io/shell-linux/v4.4.168/stremio_4.4.168-1_amd64.deb
+sudo apt install ./stremio_4.4.168-1_amd64.deb
 ```
 
-(On Fedora, Mint or Pop!_OS, Flatpak is already there: only the last line is needed.) Open Stremio once and log in.
+Open Stremio once and log in.
+
+> [!WARNING]
+> The **Flathub** version (`com.stremio.Stremio`) is now the *new* Stremio for Linux, which StremioWT can't drive yet: you'd get "Stremio not responding". Support for it (and for Ubuntu 24.04, where the `.deb` above may not install) is coming in the next version.
 
 **2.** Download **StremioWT** and open it:
 
@@ -96,7 +98,7 @@ On ARM (Raspberry Pi…), use `-r linux-arm64`.
 <details>
 <summary><b>"Stremio not found"</b></summary>
 
-Install Stremio 4 (`.deb` or Flatpak), then reopen the app. Supported places: `/usr/bin/stremio`, `/opt/stremio`, `~/.local/bin/stremio` and the Flatpak `com.stremio.Stremio`.
+Install Stremio 4 (`.deb`, see Install above), then reopen the app. Supported places: `/usr/bin/stremio`, `/opt/stremio`, `~/.local/bin/stremio` and the Flatpak `com.stremio.Stremio`.
 </details>
 
 <details>

@@ -26,7 +26,7 @@ Une petite appli, un code d'invitation, sans compte, sans serveur.
 | | |
 |---|---|
 | 🪟 **Windows** | **[Télécharger StremioWT.exe](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT.exe)** puis double-cliquez dessus. Il faut l'[application Stremio pour Windows](https://www.stremio.com/downloads). |
-| 🐧 **Linux** (bêta) | **[Télécharger StremioWT-linux-x64](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT-linux-x64)**, puis suivez le **[guide Linux](linux/README.md)** (Stremio en Flatpak, 3 commandes, page en anglais). |
+| 🐧 **Linux** (bêta) | **[Télécharger StremioWT-linux-x64](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT-linux-x64)**, puis suivez le **[guide Linux](linux/README.md)** (Stremio 4 en `.deb` + 3 commandes, page en anglais). |
 
 ## En vidéo
 
