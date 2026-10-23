@@ -21,6 +21,13 @@ Une petite appli, un code d'invitation, sans compte, sans serveur.
 
 </div>
 
+## Télécharger
+
+| | |
+|---|---|
+| 🪟 **Windows** | **[Télécharger StremioWT.exe](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT.exe)** puis double-cliquez dessus. Il faut l'[application Stremio pour Windows](https://www.stremio.com/downloads). |
+| 🐧 **Linux** (bêta) | **[Télécharger StremioWT-linux-x64](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT-linux-x64)**, puis suivez le **[guide Linux](linux/README.md)** (Stremio en Flatpak, 3 commandes, page en anglais). |
+
 ## En vidéo
 
 https://github.com/user-attachments/assets/a3c3443b-5663-4645-815f-d716168c4983
@@ -45,9 +52,9 @@ Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord
 ## Démarrage rapide
 
 > [!TIP]
-> **🐧 Nouveau : la bêta Linux !** Amis sous Linux et sous Windows peuvent partager le même salon. [Version Linux](linux/README.md) (page en anglais). C'est une bêta, donc **vos retours sont les bienvenus** : [ouvrez une issue](https://github.com/ilysay/stremio-watch-together/issues) pour nous dire comment ça s'est passé.
+> **🐧 Sous Linux ?** Suivez plutôt le **[guide Linux](linux/README.md)** (page en anglais). Amis sous Linux et sous Windows peuvent partager le même salon. C'est une bêta, donc **vos retours sont les bienvenus** : [ouvrez une issue](https://github.com/ilysay/stremio-watch-together/issues) pour nous dire comment ça s'est passé.
 
-**Il faut :** Windows 10 ou 11 et l'[application Stremio pour PC](https://www.stremio.com/downloads) officielle : Stremio 5 (la version actuelle) ou Stremio 4.
+**Il faut (Windows) :** Windows 10 ou 11 et l'[application Stremio pour PC](https://www.stremio.com/downloads) officielle : Stremio 5 (la version actuelle) ou Stremio 4.
 
 ### Organiser une soirée
 1. [Téléchargez `StremioWT.exe`](https://github.com/ilysay/stremio-watch-together/releases/latest) et double-cliquez dessus.

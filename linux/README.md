@@ -38,15 +38,20 @@ Same rooms, same invite codes: Linux and Windows friends watch together.
 
 ## Install
 
-**1.** Install **Stremio 4 for Linux**, if you don't have it: the `.deb` from [stremio.com/downloads](https://www.stremio.com/downloads), or the Flatpak:
+**1.** Install **Stremio 4 for Linux**, if you don't have it. The **Flatpak** is the most reliable (the `.deb` from [stremio.com/downloads](https://www.stremio.com/downloads) can fail on recent Ubuntu):
 
 ```bash
+sudo apt install flatpak
+flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
 flatpak install flathub com.stremio.Stremio
 ```
 
-**2.** Download **`StremioWT-linux-x64`** from the [latest release](https://github.com/ilysay/stremio-watch-together/releases/latest), make it runnable and open it:
+(On Fedora, Mint or Pop!_OS, Flatpak is already there: only the last line is needed.) Open Stremio once and log in.
+
+**2.** Download **StremioWT** and open it:
 
 ```bash
+wget https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT-linux-x64
 chmod +x StremioWT-linux-x64
 ./StremioWT-linux-x64
 ```
