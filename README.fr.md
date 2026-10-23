@@ -20,6 +20,10 @@ Une petite appli, un code d'invitation, sans compte, sans serveur.
 
 </div>
 
+## En vidéo
+
+https://github.com/user-attachments/assets/a3c3443b-5663-4645-815f-d716168c4983
+
 ## Pourquoi
 
 Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord dégrade l'image et le son.

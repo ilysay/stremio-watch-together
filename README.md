@@ -20,6 +20,10 @@ One tiny app, one invite code, no account, no server.
 
 </div>
 
+## See it in action
+
+https://github.com/user-attachments/assets/a3c3443b-5663-4645-815f-d716168c4983
+
 ## Why
 
 Stremio has no watch party. Screen sharing on Discord kills the quality and the sound sync.
