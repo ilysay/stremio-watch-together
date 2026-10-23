@@ -17,6 +17,10 @@ namespace StremioWT
             return lastHosted != null && clip.Contains(lastHosted) ? null : Invite.Parse(clip);
         }
 
+        // Code d'une soirée déjà rejointe : resté dans le presse-papier, il ne doit pas reconnecter tout seul.
+        internal static bool AlreadyJoined((string server, string room) invite) =>
+            Config.TryGetValue("lastJoined", out var lj) && lj as string == invite.server + "/" + invite.room;
+
         internal static string RequireStremio()
         {
             var exe = StremioApp.FindExe(Config);
@@ -74,6 +78,7 @@ namespace StremioWT
         {
             var invite = Invite.Parse(inviteText) ?? throw new Exception(L.T("Ce code n'est pas valide : il doit commencer par WT-"));
             var stremioExe = RequireStremio();
+            Config["lastJoined"] = invite.server + "/" + invite.room;
             Remember(name, stremioExe);
             Telemetry.Send("join");
             return new Session(invite.server, invite.room, name, false, stremioExe, null);

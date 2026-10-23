@@ -217,6 +217,11 @@ namespace StremioWT
             var invite = Rooms.InviteFromClipboard();
             if (invite == null) return;
             codeBox.Box.Text = Clipboard.GetText().Trim();
+            if (Rooms.AlreadyJoined(invite.Value))
+            {
+                startStatus.Text = L.T("Code d'une soirée précédente : clique sur Rejoindre si elle est encore en cours.");
+                return;
+            }
             startStatus.Text = L.T("Code d'invitation trouvé dans le presse-papier, connexion…");
             StartJoin();
         }
