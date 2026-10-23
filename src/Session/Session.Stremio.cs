@@ -61,9 +61,11 @@ namespace StremioWT
             // Stremio resté ouvert depuis une version précédente de StremioWT : l'ancien script est encore dans la page.
             // On recharge l'interface une fois ; le nouveau script s'y installe tout seul (addScriptToEvaluateOnNewDocument).
             var loaded = await c.Eval("window.__wt && window.__wt.version") as string;
-            if (loaded != StremioApp.InjectVersion)
+            var lateHook = await c.Eval("!!(window.__wt && window.__wt.needsReload)") is bool late && late;
+            if (loaded != StremioApp.InjectVersion || lateHook)
             {
-                Program.Log($"script {loaded ?? "ancien"} trouvé dans Stremio (attendu {StremioApp.InjectVersion}) : rechargement de l'interface");
+                Program.Log(lateHook ? "Stremio 5 déjà chargé : rechargement de l'interface pour installer le script dès le départ"
+                    : $"script {loaded ?? "ancien"} trouvé dans Stremio (attendu {StremioApp.InjectVersion}) : rechargement de l'interface");
                 await c.Call("Page.reload");
                 for (int i = 0; i < 40 && (await c.Eval("window.__wt && window.__wt.version").ContinueWith(t => t.IsFaulted ? null : t.Result) as string) != StremioApp.InjectVersion; i++)
                     await Task.Delay(250);
@@ -117,7 +119,7 @@ namespace StremioWT
                     try { await AttachStremio(url); Console.WriteLine("Reconnecté à Stremio."); return; }
                     catch (Exception e) { Program.Log("rebranchement Stremio : " + e.Message); }
                 }
-                else if (Process.GetProcessesByName("stremio").Length == 0) break;
+                else if (Process.GetProcessesByName("stremio").Length + Process.GetProcessesByName("stremio-shell-ng").Length == 0) break;
             }
             await ReportEnd();
             Program.Fail(L.T("Stremio a été fermé. Fin du Watch Together."));

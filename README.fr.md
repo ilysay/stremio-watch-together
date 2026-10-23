@@ -43,7 +43,7 @@ Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord
 
 ## Démarrage rapide
 
-**Il faut :** Windows 10 ou 11 et l'[application Stremio pour PC](https://www.stremio.com/downloads) officielle (version 4).
+**Il faut :** Windows 10 ou 11 et l'[application Stremio pour PC](https://www.stremio.com/downloads) officielle : Stremio 5 (la version actuelle) ou Stremio 4.
 
 ### Organiser une soirée
 1. [Téléchargez `StremioWT.exe`](https://github.com/ilysay/stremio-watch-together/releases/latest) et double-cliquez dessus.
@@ -91,12 +91,26 @@ flowchart LR
 Get-FileHash .\StremioWT.exe -Algorithm SHA256
 ```
 
+**Antivirus :** [VirusTotal](https://www.virustotal.com/gui/file/a41f938558bddb85695cba07b26a50bfd9ce48799bdd358ee6dffd2b535971a0) indique 1/71, une estimation de l'IA de Malwarebytes (`MachineLearning/Anomalous`), fréquente pour les nouveaux outils non signés. Elle est en cours de signalement à Malwarebytes comme faux positif. Les 70 autres antivirus, dont Microsoft Defender, ne détectent rien.
+
 ## FAQ
 
 <details>
 <summary><b>Tout le monde doit avoir Real-Debrid ?</b></summary>
 
 Non, chacun choisit sa source. Si l'hôte lance un lien Real-Debrid, les amis arrivent sur la page de l'épisode avec un bandeau qui leur demande de choisir une source, et le salon les recale dès qu'ils la lancent.
+</details>
+
+<details>
+<summary><b>Ça marche avec les addons HTTP / débrideurs ?</b></summary>
+
+Oui. Les liens directs ne sont volontairement pas partagés : ils contiennent souvent votre clé de débrideur et ne marchent en général que chez vous. Les amis arrivent sur le même épisode, choisissent leur source, et le salon les garde synchronisés.
+</details>
+
+<details>
+<summary><b>Pourquoi mon ami a quelques minutes d'avance alors qu'on est synchronisés ?</b></summary>
+
+Vous avez sûrement pris des versions différentes (autre montage, ou version à 25 images/s plus courte). La synchro suit le minutage : prenez la même source, même nom et même taille. L'appli prévient quand la durée de votre vidéo ne correspond pas à celle de l'hôte.
 </details>
 
 <details>
@@ -114,7 +128,7 @@ Oui : cochez « amis sur le même wifi seulement » avant d'héberger. Aucun tun
 <details>
 <summary><b>Sur téléphone, Mac ou Linux ?</b></summary>
 
-Pas pour l'instant : l'appli s'appuie sur la version Windows de Stremio 4.
+Pas pour l'instant : l'appli s'appuie sur la version Windows de Stremio (4 ou 5). Des amis sur Stremio 4 et Stremio 5 peuvent partager le même salon.
 </details>
 
 ## Compiler soi-même
@@ -130,6 +144,8 @@ cd stremio-watch-together
 L'organisation du code est décrite dans le [README anglais](README.md#build-from-source).
 
 ## Licence
+
+Si le projet vous plaît, une ⭐ sur GitHub aide vraiment à le faire connaître.
 
 [MIT](LICENSE). Les contributions et signalements de bugs sont les bienvenus dans les [issues](https://github.com/ilysay/stremio-watch-together/issues).
 

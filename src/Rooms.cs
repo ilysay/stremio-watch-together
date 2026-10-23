@@ -59,12 +59,17 @@ namespace StremioWT
             }
             var code = Invite.Make(publicUrl, room);
             Config["lastHosted"] = code;
-            Sta(() => { Clipboard.SetText(code); return true; });
+            var message = InviteMessage(code);
+            Sta(() => { Clipboard.SetText(message); return true; });
             Console.WriteLine(L.T("Code d'invitation copié : colle-le à tes amis."));
             Remember(name, stremioExe);
             _ = Telemetry.Send("host", 1);
             return (new Session($"http://127.0.0.1:{port}", room, name, true, stremioExe, relay), code);
         }
+
+        // Message à coller aux amis : le lien de téléchargement pour ceux qui n'ont pas l'appli, puis le code
+        // (l'appli retrouve le code WT-… n'importe où dans le texte copié).
+        internal static string InviteMessage(string code) => L.F("Rejoins ma soirée film sur Stremio !\n1. Télécharge l'appli : {0}\n2. Copie ce message puis ouvre StremioWT.\n\n{1}", Updates.DownloadUrl, code);
 
         internal static Session Join(string name, string inviteText)
         {

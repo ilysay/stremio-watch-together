@@ -1,6 +1,6 @@
-// Script injecté dans l'interface de Stremio 4 (page app.strem.io/shell-v4.4).
-// Il observe les commandes que l'interface envoie à mpv (via qt.webChannelTransport)
-// pour détecter pause / lecture / déplacement, et applique ceux reçus des autres.
+// Script injecté dans l'interface de Stremio : Stremio 4 (app.strem.io, Qt) ou Stremio 5 (web.stremio.com, WebView2).
+// Il observe les commandes que l'interface envoie à mpv (qt.webChannelTransport sous Stremio 4,
+// chrome.webview.postMessage sous Stremio 5) pour détecter pause / lecture / déplacement, et applique ceux reçus des autres.
 (() => {
   const VERSION = '__WT_VERSION__';
   if (window.__wt) return;
@@ -27,14 +27,27 @@
   const WATCHED_RATIO = 0.85; // film considéré comme vu à 85 % (le générique de fin n'est pas compté)
   let watchedKey = null;
 
+  const V5 = /(^|\.)stremio\.com$/.test(location.hostname);
+  W.shell = V5 ? 5 : 4;
+  // Script arrivé après le chargement de la page : sous Stremio 5 l'interface a déjà gardé sa propre
+  // référence à postMessage, nos espions ne verraient rien. Le programme recharge alors la page.
+  W.needsReload = V5 && document.readyState !== 'loading';
   const now = () => Date.now();
   const toNode = m => { try { window.__wtSend(JSON.stringify(m)); } catch (e) {} };
   const debug = text => toNode({ type: 'debug', text: String(text).slice(0, 500) });
   // "#/player/series/tt0121955/tt0121955:18:1/<source>" → "#/player/series/tt0121955/tt0121955:18:1" :
   // on compare l'épisode, pas la source (le lien complet peut différer d'un PC à l'autre).
-  const videoKey = h => (h || '').split('/').slice(0, 5).join('/');
+  // Stremio 5 : "#/player/<flux>/<addon flux>/<addon fiche>/<type>/<id>/<épisode>", ramené à la forme de Stremio 4
+  // pour que les deux versions (et les anciennes versions de StremioWT) parlent du même épisode.
+  const TYPES = ['movie', 'series', 'channel', 'tv', 'other'];
+  const dec = s => { try { return decodeURIComponent(s || ''); } catch (e) { return s || ''; } };
+  const videoKey = h => {
+    const p = (h || '').split('/');
+    if (p[1] !== 'player' || TYPES.includes(p[2]) || p.length < 3) return p.slice(0, 5).join('/');
+    return p.length >= 8 && TYPES.includes(dec(p[5])) ? ['#', 'player', dec(p[5]), dec(p[6]), dec(p[7])].join('/') : '#/player/other/' + (p[2] || '').slice(0, 24);
+  };
   const sameVideo = (a, b) => videoKey(a) === videoKey(b);
-  const device = () => { try { return angular.element(document.body).injector().get('player').device || null; } catch (e) { return null; } };
+  const device = () => V5 ? mpv.device() : (() => { try { return angular.element(document.body).injector().get('player').device || null; } catch (e) { return null; } })();
   const inPlayer = () => location.hash.indexOf('#/player/') === 0;
   const isReady = d => !!d && d.length > 0;
   const fmt = ms => { const s = Math.max(0, Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60;
@@ -45,9 +58,13 @@
   // les autres ne reçoivent que l'épisode et choisissent leur propre source.
   let privateSource = false;
   const isLocalUrl = u => /^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//i.test(u || '');
-  const sharedHash = () => !privateSource ? location.hash
+  const sharedHash = () => V5 ? (privateSource && videoKey(location.hash).split('/')[2] === 'other' ? '#/player/other/prive' : videoKey(location.hash))
+    : !privateSource ? location.hash
     : location.hash.split('/')[2] === 'other' ? '#/player/other/prive' : videoKey(location.hash);
+  // Sous Stremio 5, le lien complet (avec la source) voyage à part : seul un autre Stremio 5 sait l'ouvrir.
+  const ids = () => V5 && !privateSource && inPlayer() ? { hash: sharedHash(), v5: location.hash } : { hash: sharedHash() };
   const hasSource = h => !!((h || '').split('/')[5]);
+  const sourceFor = msg => V5 ? (msg.v5 || null) : (hasSource(msg.hash) ? msg.hash : null);
   let choosingSource = false;
   function showChooseSource(who) {
     choosingSource = true;
@@ -57,7 +74,7 @@
   W.state = () => {
     const d = device();
     if (!inPlayer() || !isReady(d) || loading) return null;
-    return { hash: sharedHash(), paused: !!d.paused, time: d.time || 0 };
+    return Object.assign(ids(), { paused: !!d.paused, time: d.time || 0, length: d.length || 0 });
   };
 
   function onOut(m) {
@@ -67,20 +84,21 @@
       loading = true; readyAt = 0;
       const h = location.hash;
       privateSource = !isLocalUrl(args[1]);
+      if (V5) mpv.reset();
       if (choosingSource) { choosingSource = false; hideBanner(); }
       wasFollowing = remoteOpenKey !== null && videoKey(h) === remoteOpenKey;
       debug('chargement de ' + videoKey(h) + (wasFollowing ? ' (lancé par un autre)' : '') + (privateSource ? ' · source privée, lien non partagé' : ''));
       remoteOpenKey = null;
       watchedKey = null;
-      if (!applying && !wasFollowing) { if (adminLock) blocked(); else toNode({ type: 'open', hash: sharedHash(), private: privateSource }); }
+      if (!applying && !wasFollowing) { if (adminLock) blocked(); else toNode(Object.assign({ type: 'open', private: privateSource }, ids())); }
       return;
     }
     if (ev !== 'mpv-set-prop' || applying || loading || !inPlayer()) return;
     if (args[0] !== 'pause' && args[0] !== 'time-pos') return;
     if (adminLock) return blocked();
     const d = device();
-    if (args[0] === 'pause') toNode({ type: args[1] ? 'pause' : 'play', hash: sharedHash(), time: (d && d.time) || 0 });
-    else toNode({ type: 'seek', hash: sharedHash(), time: args[1] * 1000, paused: !!(d && d.paused) });
+    if (args[0] === 'pause') toNode(Object.assign({ type: args[1] ? 'pause' : 'play', time: (d && d.time) || 0 }, ids()));
+    else toNode(Object.assign({ type: 'seek', time: args[1] * 1000, paused: !!(d && d.paused) }, ids()));
   }
 
   let resyncTimer = null;
@@ -91,7 +109,42 @@
     resyncTimer = setTimeout(() => toNode({ type: 'need-sync' }), 400);
   }
 
+  // Lecteur de Stremio 5 : son état arrive en messages « mpv-prop-change » ; on le pilote avec les mêmes
+  // commandes que l'interface, envoyées en texte JSON (le seul format accepté par le shell).
+  const mpv = (() => {
+    let props = {}, ready = false, post = null;
+    const send = (ev, args) => { if (post) post(JSON.stringify({ id: 0, type: 6, args: [ev, args] })); };
+    const onIn = data => {
+      let m = data; try { if (typeof m === 'string') m = JSON.parse(m); } catch (e) { return; }
+      const a = m && m.args; if (!Array.isArray(a)) return;
+      if (a[0] === 'mpv-prop-change' && a[1]) props[a[1].name] = a[1].data;
+      else if (a[0] === 'mpv-event-video-ready' && a[1]) ready = !!a[1].ready;
+    };
+    const dev = {
+      get time() { return (props['time-pos'] || 0) * 1000; },
+      set time(ms) { props['time-pos'] = ms / 1000; send('mpv-set-prop', ['time-pos', ms / 1000]); },
+      get paused() { return !!props.pause; },
+      set paused(v) { props.pause = !!v; send('mpv-set-prop', ['pause', !!v]); },
+      get length() { return (props.duration || 0) * 1000; },
+      get state() { return !ready ? 1 : props['paused-for-cache'] || props.seeking ? 2 : props.pause ? 4 : 3; },
+    };
+    return {
+      device: () => dev,
+      reset: () => { props = {}; ready = false; },
+      install() {
+        const wv = window.chrome && window.chrome.webview;
+        if (!wv || wv.__wtHooked) return;
+        post = wv.postMessage.bind(wv);
+        wv.postMessage = function (m) { try { onOut(typeof m === 'string' ? JSON.parse(m) : m); } catch (e) {} return post(m); };
+        wv.addEventListener('message', e => onIn(e.data));
+        wv.__wtHooked = true;
+      },
+    };
+  })();
+  if (V5) mpv.install();
+
   function hook() {
+    if (V5) return;
     const t = window.qt && window.qt.webChannelTransport;
     if (!t || t.__wtHooked || typeof t.send !== 'function') return;
     const origSend = t.send;
@@ -118,14 +171,14 @@
   // Ouvre l'épisode lancé par un autre. Retourne false si on le regarde déjà ou s'il vient
   // d'être ouvert (évite les rechargements en boucle du lecteur → écran blanc), 'detail' si c'est
   // une source privée (pas de lien : on ouvre la page de l'épisode pour choisir sa source), 'player' sinon.
-  function openHash(hash, force) {
-    const key = videoKey(hash);
+  function openHash(msg, force) {
+    const hash = msg.hash, key = videoKey(hash);
     if (sameVideo(location.hash, hash)) return false;
-    let target = hash, kind = 'player';
-    if (!hasSource(hash)) {
+    let target = sourceFor(msg), kind = 'player';
+    if (!target) {
       const parts = key.split('/');
       if (parts[2] === 'other' || !parts[3]) return false;
-      target = '#/detail/' + parts.slice(2, 5).join('/');
+      target = '#/detail/' + (V5 ? parts.slice(2, 5).map(encodeURIComponent) : parts.slice(2, 5)).join('/');
       kind = 'detail';
       if (location.hash === target) return false;
     }
@@ -257,20 +310,21 @@
     if (typeof msg.hash === 'string' && msg.hash.indexOf('#/player/') !== 0) return;
     if (msg.type === 'open') {
       pending = null;
-      const opened = openHash(msg.hash);
+      const opened = openHash(msg);
       if (opened === 'player') toast(T('{0} a lancé une vidéo', msg.from));
       else if (opened === 'detail') showChooseSource(msg.from);
-      else if (!hasSource(msg.hash) && !sameVideo(msg.hash, location.hash)) toast(T('{0} a lancé une source privée : lance la même vidéo de ton côté', msg.from));
+      else if (!sourceFor(msg) && !sameVideo(msg.hash, location.hash)) toast(T('{0} a lancé une source privée : lance la même vidéo de ton côté', msg.from));
       return;
     }
     if (!['play', 'pause', 'seek', 'sync'].includes(msg.type)) return;
+    checkLength(msg);
     if (msg.type === 'play') toast(T('{0} a repris la lecture', msg.from));
     if (msg.type === 'pause') toast(T('{0} a mis pause', msg.from));
     if (msg.type === 'seek') toast(T('{0} est allé à {1}', msg.from, fmt(msg.time)));
     if (msg.hash && !sameVideo(msg.hash, location.hash)) {
       if (msg.type === 'sync' && !msg.force && !adminLock) return;
       pending = msg;
-      const opened = openHash(msg.hash, msg.force || adminLock);
+      const opened = openHash(msg, msg.force || adminLock);
       if (opened === 'detail') { pending = null; showChooseSource(msg.from); }
       else if (!opened && !inPlayer()) pending = null;
       return;
@@ -283,7 +337,7 @@
     debug('page : ' + (inPlayer() ? videoKey(location.hash) : location.hash.split('/').slice(0, 2).join('/'))));
   let playerHooked = false, lastState = null;
   function hookPlayer() {
-    if (playerHooked) return;
+    if (playerHooked || V5) return;
     try {
       const p = angular.element(document.body).injector().get('player');
       p.on('error', e => { let t; try { t = JSON.stringify(e); } catch (x) { t = String(e); } debug('erreur du lecteur : ' + t); });
@@ -308,21 +362,21 @@
       if (!bufReported && now() - bufSince >= BUFFER_REPORT_MS) {
         bufReported = true;
         debug('chargement en cours, signalé aux autres');
-        toNode({ type: 'buffer', on: true, hash: sharedHash() });
+        toNode(Object.assign({ type: 'buffer', on: true }, ids()));
       }
     } else {
       bufSince = 0;
       if (bufReported) {
         bufReported = false;
         debug('chargement terminé, signalé aux autres');
-        toNode({ type: 'buffer', on: false, hash: sharedHash() });
+        toNode(Object.assign({ type: 'buffer', on: false }, ids()));
       }
     }
   }
 
   function checkWatched() {
     if (!inPlayer() || loading) return;
-    const parts = location.hash.split('/');
+    const parts = videoKey(location.hash).split('/');
     if ((parts[2] !== 'movie' && parts[2] !== 'series') || !/^tt\d+$/.test(parts[3] || '')) return;
     const key = videoKey(location.hash);
     if (watchedKey === key) return;
@@ -423,13 +477,24 @@
       (s.admin ? T(' · hôte admin') : '')));
     wake();
   }
-  function toast(text) {
+  // Même épisode mais pas la même durée : ce n'est pas le même fichier (autre version, autre montage),
+  // donc le même minutage ne montre pas la même scène. Prévenu une fois par épisode.
+  let lengthWarned = null;
+  function checkLength(msg) {
+    if (!msg.length || !msg.hash || !sameVideo(msg.hash, location.hash)) return;
+    const d = device(); if (!isReady(d) || loading) return;
+    const diff = d.length - msg.length, key = videoKey(location.hash);
+    if (Math.abs(diff) < 20000 || lengthWarned === key) return;
+    lengthWarned = key;
+    toast(T(diff < 0 ? 'Ta vidéo dure {0} de moins que celle de {1} : prends la même source (même nom, même taille) pour rester calé.' : 'Ta vidéo dure {0} de plus que celle de {1} : prends la même source (même nom, même taille) pour rester calé.', fmt(Math.abs(diff)), msg.from || T("L'hôte")), 10000);
+  }
+  function toast(text, duration = 4000) {
     ensureUi();
     const t = document.createElement('div');
     t.textContent = text;
     t.style.cssText = 'background:rgba(0,0,0,.75);border-radius:8px;padding:4px 10px';
     toastsEl.appendChild(t);
-    setTimeout(() => t.remove(), 4000);
+    setTimeout(() => t.remove(), duration);
     wake();
   }
 })();

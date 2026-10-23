@@ -43,7 +43,7 @@ Stremio has no watch party. Screen sharing on Discord kills the quality and the 
 
 ## Quick start
 
-**You need:** Windows 10 or 11 and the official [Stremio desktop app](https://www.stremio.com/downloads) (version 4).
+**You need:** Windows 10 or 11 and the official [Stremio desktop app](https://www.stremio.com/downloads): Stremio 5 (the current version) or Stremio 4.
 
 ### Host a movie night
 1. [Download `StremioWT.exe`](https://github.com/ilysay/stremio-watch-together/releases/latest) and double-click it.
@@ -91,12 +91,26 @@ flowchart LR
 Get-FileHash .\StremioWT.exe -Algorithm SHA256
 ```
 
+**Antivirus:** [VirusTotal](https://www.virustotal.com/gui/file/a41f938558bddb85695cba07b26a50bfd9ce48799bdd358ee6dffd2b535971a0) shows 1/71, a Malwarebytes machine-learning guess (`MachineLearning/Anomalous`) typical of new, unsigned tools. It is being reported to Malwarebytes as a false positive. All 70 other engines, including Microsoft Defender, find nothing.
+
 ## FAQ
 
 <details>
 <summary><b>Does everyone need Real-Debrid?</b></summary>
 
 No. Each person picks their own source. If the host plays a Real-Debrid link, friends land on the episode page with a banner asking them to choose a source, and the room follows as soon as they start it.
+</details>
+
+<details>
+<summary><b>Does it work with HTTP / debrid addons?</b></summary>
+
+Yes. Direct links aren't shared on purpose: they often contain your private debrid key and usually only work for you. Friends land on the same episode, pick their own source, and the room keeps them in sync.
+</details>
+
+<details>
+<summary><b>Why is my friend a few minutes ahead even though we're synced?</b></summary>
+
+You probably picked different releases (another cut, or a 25 fps version that runs shorter). Sync follows the timestamp, so pick the same source, same name and size. The app warns you when your video length doesn't match the host's.
 </details>
 
 <details>
@@ -114,7 +128,7 @@ Yes, turn on "friends on the same Wi-Fi only" before hosting. No tunnel is opene
 <details>
 <summary><b>Does it work on phone, Mac or Linux?</b></summary>
 
-Not for now: it relies on the Windows version of Stremio 4.
+Not for now: it relies on the Windows version of Stremio (4 or 5). Friends on Stremio 4 and Stremio 5 can share the same room.
 </details>
 
 <details>
@@ -144,6 +158,8 @@ cd stremio-watch-together
 | `telemetry` | Cloudflare Worker for anonymous stats and GIF search |
 
 ## License
+
+If you like it, a ⭐ on GitHub really helps others find it.
 
 [MIT](LICENSE). Contributions and bug reports are welcome in the [issues](https://github.com/ilysay/stremio-watch-together/issues).
 

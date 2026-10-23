@@ -126,7 +126,14 @@ namespace StremioWT
             var settings = new FlatButton("⚙", primary: false) { Location = new Point(416, 740), Size = new Size(40, 38), Font = new Font("Segoe UI Symbol", 13f) };
             settings.Click += (s, e) => new SettingsForm().ShowDialog(this);
             new ToolTip().SetToolTip(settings, L.T("Paramètres"));
-            startPanel.Controls.AddRange(new Control[] { Header(), nameCard, joinCard, hostCard, startStatus, journalStart, settings });
+            var update = new FlatButton("", primary: true) { Location = new Point(24, 680), Size = new Size(432, 44), Visible = false };
+            update.Click += (s, e) => OpenUrl(Updates.DownloadUrl);
+            Shown += async (s, e) =>
+            {
+                var version = await Updates.NewerVersion();
+                if (version != null && !IsDisposed) { update.Text = L.F("Nouvelle version {0} disponible : télécharger", version); update.Visible = true; }
+            };
+            startPanel.Controls.AddRange(new Control[] { Header(), nameCard, joinCard, hostCard, startStatus, update, journalStart, settings });
         }
 
         void BuildSession()
@@ -154,7 +161,7 @@ namespace StremioWT
             inviteBox.Box.ReadOnly = true;
             inviteBox.Box.BackColor = Theme.Input;
             copyButton.SetBounds(324, 41, 92, 38);
-            copyButton.Click += (s, e) => { try { Clipboard.SetText(inviteBox.Box.Text); FlashText(copyButton, L.T("Copié ✓")); } catch { } };
+            copyButton.Click += (s, e) => { try { Clipboard.SetText(Rooms.InviteMessage(inviteBox.Box.Text)); FlashText(copyButton, L.T("Copié ✓")); } catch { } };
             inviteCard.Controls.AddRange(new Control[] { inviteBox, copyButton });
 
             adminCard.Location = new Point(24, 370);
@@ -312,6 +319,8 @@ namespace StremioWT
                     : L.T("Désactivé : tout le monde peut mettre pause, avancer ou changer d'épisode.");
             }
         }
+
+        static void OpenUrl(string url) { try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { } }
 
         static async void FlashText(Control c, string text)
         {

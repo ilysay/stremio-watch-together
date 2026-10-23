@@ -196,7 +196,7 @@ namespace StremioWT
                         {
                             var hostVersion = (await res.Content.ReadAsStringAsync()).Trim();
                             await Telemetry.Send("error", detail: "version");
-                            Program.Fail(L.F("L'hôte utilise StremioWT {0}, toi la version {1}.\n\nIl faut la même version des deux côtés : demande-lui son StremioWT.exe (ou envoie-lui le tien).", hostVersion, Program.ProtocolVersion));
+                            Program.Fail(L.F("L'hôte utilise StremioWT {0}, toi la version {1}.\n\nIl faut la même version des deux côtés : demande-lui son StremioWT.exe (ou envoie-lui le tien).", hostVersion, Program.ProtocolVersion) + "\n\n" + Updates.DownloadUrl);
                             return;
                         }
                         if (res.StatusCode == HttpStatusCode.Forbidden && (await res.Content.ReadAsStringAsync()).Contains("plein"))
