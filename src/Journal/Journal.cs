@@ -140,17 +140,21 @@ namespace StremioWT
             catch (Exception e) { Program.Log("cinemeta : " + e.Message); }
         }
 
-        // Lecture de la bibliothèque de Stremio (localStorage « lib_<compte>_<imdb> ») :
-        // films vus (marqués vus, regardés au moins une fois, ou position ≥ 85 %) et séries entamées,
-        public const string HistoryScript = @"(()=>{const out=[];for(const key of Object.keys(localStorage)){
-            if(!/^lib_[^_]+_tt\d+$/.test(key))continue;
-            try{const it=JSON.parse(localStorage.getItem(key));const s=it.state||{};
-              if(it.type==='movie'){if(!(s.flaggedWatched||s.timesWatched>0||(s.duration>0&&s.timeOffset/s.duration>=0.85)))continue;}
-              else if(it.type==='series'){if(!(s.watched||s.timesWatched>0||s.flaggedWatched))continue;}
-              else continue;
+        // Lecture de la bibliothèque de Stremio : films vus (marqués vus, regardés au moins une fois, ou position ≥ 85 %)
+        // et séries entamées. Stremio 4 range un titre par clé (« lib_<compte>_<imdb> ») ; Stremio 5 et Stremio Web
+        // rangent tout dans « library_recent » et « library » ({ uid, items: { <imdb>: … } }).
+        public const string HistoryScript = @"(()=>{const out=[],seen=new Set();
+            const add=it=>{if(!it||!/^tt\d+$/.test(it._id||'')||seen.has(it._id))return;const s=it.state||{};
+              if(it.type==='movie'){if(!(s.flaggedWatched||s.timesWatched>0||(s.duration>0&&s.timeOffset/s.duration>=0.85)))return;}
+              else if(it.type==='series'){if(!(s.watched||s.timesWatched>0||s.flaggedWatched))return;}
+              else return;
+              seen.add(it._id);
               out.push({id:it._id,type:it.type,name:it.name||'',year:String(it.year||''),poster:it.poster||'',last:s.lastWatched||it._mtime||'',
-                watched:s.watched||'',video:s.video_id||''});
-            }catch(e){}}return out})()";
+                watched:s.watched||'',video:s.video_id||''});};
+            for(const key of Object.keys(localStorage)){if(/^lib_[^_]+_tt\d+$/.test(key)){try{add(JSON.parse(localStorage.getItem(key)))}catch(e){}}}
+            for(const key of ['library_recent','library']){try{const b=JSON.parse(localStorage.getItem(key)||'null');const items=b&&(b.items||b);
+              if(items&&typeof items==='object')for(const id of Object.keys(items))add(items[id]);}catch(e){}}
+            return out})()";
 
         public static List<StremioFilm> ParseHistory(object value)
         {
