@@ -157,12 +157,17 @@ namespace StremioWT
 
             inviteCard.Location = new Point(24, 266);
             inviteCard.Size = new Size(432, 92);
-            inviteBox.SetBounds(16, 42, 300, 36);
+            inviteBox.SetBounds(16, 42, 252, 36);
             inviteBox.Box.ReadOnly = true;
             inviteBox.Box.BackColor = Theme.Input;
-            copyButton.SetBounds(324, 41, 92, 38);
-            copyButton.Click += (s, e) => { try { Clipboard.SetText(Rooms.InviteMessage(inviteBox.Box.Text)); FlashText(copyButton, L.T("Copié ✓")); } catch { } };
-            inviteCard.Controls.AddRange(new Control[] { inviteBox, copyButton });
+            copyButton.SetBounds(276, 41, 92, 38);
+            copyButton.Click += (s, e) => { try { Clipboard.SetText(inviteBox.Box.Text); FlashText(copyButton, L.T("Copié ✓")); } catch { } };
+            // Pour les amis qui n'ont pas encore l'appli : le code précédé du lien de téléchargement.
+            var inviteWithLink = new FlatButton("🔗", primary: false) { Font = new Font("Segoe UI Emoji", 12f) };
+            inviteWithLink.SetBounds(376, 41, 40, 38);
+            inviteWithLink.Click += (s, e) => { try { Clipboard.SetText(Rooms.InviteMessage(inviteBox.Box.Text)); FlashText(inviteWithLink, "✓"); } catch { } };
+            new ToolTip().SetToolTip(inviteWithLink, L.T("Copier l'invitation avec le lien de téléchargement (pour les amis qui n'ont pas l'appli)"));
+            inviteCard.Controls.AddRange(new Control[] { inviteBox, copyButton, inviteWithLink });
 
             adminCard.Location = new Point(24, 370);
             adminCard.Size = new Size(432, 76);

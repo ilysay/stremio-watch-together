@@ -59,8 +59,7 @@ namespace StremioWT
             }
             var code = Invite.Make(publicUrl, room);
             Config["lastHosted"] = code;
-            var message = InviteMessage(code);
-            Sta(() => { Clipboard.SetText(message); return true; });
+            Sta(() => { Clipboard.SetText(code); return true; });
             Console.WriteLine(L.T("Code d'invitation copié : colle-le à tes amis."));
             Remember(name, stremioExe);
             _ = Telemetry.Send("host", 1);

@@ -16,7 +16,7 @@
     <Copyright>Copyright (c) 2026 ilyasb2, MIT license</Copyright>
     <RepositoryUrl>https://github.com/ilysay/stremio-watch-together</RepositoryUrl>
     <NeutralLanguage>en</NeutralLanguage>
-    <Version>3.5.11</Version>
+    <Version>3.5.12</Version>
     <ApplicationIcon>assets\app.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
