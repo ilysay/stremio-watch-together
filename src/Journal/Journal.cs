@@ -51,7 +51,7 @@ namespace StremioWT
         static readonly string Dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StremioWT");
         static readonly string File = Path.Combine(Dir, "journal.json");
         static readonly string SeenFile = Path.Combine(Dir, "journal-historique.json");
-        static readonly string PosterDir = Path.Combine(Dir, "affiches");
+        internal static readonly string PosterDir = Path.Combine(Dir, "affiches");
         static readonly object gate = new object();
         static List<JournalEntry> entries;
         static HashSet<string> seenHistory;

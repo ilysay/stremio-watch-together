@@ -151,6 +151,11 @@ Exec=$BIN/stremiowt-launch
 Icon=$DATA/icon.png
 Terminal=false
 Categories=AudioVideo;Video;Network;
+Actions=diary;
+
+[Desktop Action diary]
+Name=My diary
+Exec=$BIN/stremiowt-launch --diary
 DESKTOP
 update-desktop-database "$HOME/.local/share/applications" > /dev/null 2>&1 || true
 ok "Installed: \"Stremio Watch Together\" is now in your applications menu"

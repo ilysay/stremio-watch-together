@@ -68,11 +68,11 @@ namespace StremioWT
         }
 
         // --- Petits éléments de style ---------------------------------------------------------------
-        static TextBlock Muted(string text) => new TextBlock { Text = text, FontSize = 12, Foreground = Palette.Brush(Palette.Muted), TextWrapping = TextWrapping.Wrap };
-        static TextBlock Heading(string text) => new TextBlock { Text = text, FontSize = 16, FontWeight = FontWeight.SemiBold, Foreground = Palette.Brush(Palette.Text) };
-        static Button Primary(string text) => new Button { Content = text, Classes = { "accent" }, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Padding = new Thickness(12, 9) };
-        static Button Secondary(string text) => new Button { Content = text, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Padding = new Thickness(12, 9) };
-        static Border Card(params Control[] children)
+        internal static TextBlock Muted(string text) => new TextBlock { Text = text, FontSize = 12, Foreground = Palette.Brush(Palette.Muted), TextWrapping = TextWrapping.Wrap };
+        internal static TextBlock Heading(string text) => new TextBlock { Text = text, FontSize = 16, FontWeight = FontWeight.SemiBold, Foreground = Palette.Brush(Palette.Text) };
+        internal static Button Primary(string text) => new Button { Content = text, Classes = { "accent" }, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Padding = new Thickness(12, 9) };
+        internal static Button Secondary(string text) => new Button { Content = text, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Padding = new Thickness(12, 9) };
+        internal static Border Card(params Control[] children)
         {
             var panel = new StackPanel { Spacing = 10 };
             foreach (var c in children) panel.Children.Add(c);
@@ -110,6 +110,7 @@ namespace StremioWT
             var update = Primary("");
             update.IsVisible = false;
             update.Click += (s, e) => OpenUrl(Updates.DownloadUrl);
+            Opened += (s, e) => OpenDiaryIfAsked();
             Opened += async (s, e) =>
             {
                 var version = await Updates.NewerVersion();
@@ -123,7 +124,7 @@ namespace StremioWT
                 Card(Heading(L.T("Ton pseudo")), nameBox),
                 Card(Heading(L.T("Rejoindre un salon")), Muted(L.T("Colle le code d'invitation reçu (WT-…)")), codeBox, joinButton),
                 Card(Heading(L.T("Héberger un salon")), hostButton, localBox),
-                startStatus, reportButton, update, settings);
+                startStatus, reportButton, update, DiaryButton(), settings);
         }
 
         string Pseudo() => string.IsNullOrWhiteSpace(nameBox.Text) ? L.T("Invité") : nameBox.Text.Trim();
@@ -195,9 +196,11 @@ namespace StremioWT
             }
 
             adminBox.Content = new TextBlock { Text = L.T("Hébergeur admin"), FontWeight = FontWeight.SemiBold, Foreground = Palette.Brush(Palette.Text) };
-            adminBox.IsEnabled = s.IsHost;
-            adminBox.IsCheckedChanged += (o, e) => { if (session != null && session.IsHost) session.SetAdmin(adminBox.IsChecked == true); };
-            if (s.IsHost) adminHint.Text = L.T("Activé : toi seul peux mettre pause, avancer ou changer d'épisode. Les autres suivent.");
+            // Bêta Linux : l'hôte garde toujours la main (les actions des autres ne s'appliquent pas encore bien ici).
+            if (s.IsHost) s.SetAdmin(true);
+            adminBox.IsChecked = s.IsHost || s.AdminOn;
+            adminBox.IsEnabled = false;
+            if (s.IsHost) adminHint.Text = L.T("Toujours activé sur Linux (bêta) : toi seul peux mettre pause, avancer ou changer d'épisode. Les autres suivent.");
 
             chatScroll.Content = chatFeed;
             chatInput.KeyDown += (o, e) => { if (e.Key == Avalonia.Input.Key.Enter) SendChat(); };
@@ -217,10 +220,14 @@ namespace StremioWT
             if (inviteCard != null) parts.Add(inviteCard);
             parts.Add(Card(adminBox, adminHint));
             parts.Add(chatCard);
+            parts.Add(DiaryButton());
             parts.Add(quit);
             screen.Content = Page(parts.ToArray());
 
             s.StateChanged += () => Dispatcher.UIThread.Post(RefreshState);
+            // Journal : noter le film à la fin, et proposer d'importer l'historique Stremio à l'arrivée.
+            s.FilmFinished += entry => Dispatcher.UIThread.Post(() => new RatingWindow(entry, e => s.ShareRating(e)).Show(this));
+            s.HistoryFound += films => Dispatcher.UIThread.Post(async () => await Diary.AskImport(this, films));
             s.ChatReceived += m => Dispatcher.UIThread.Post(() => AddChat(m));
             RefreshState();
             _ = Task.Run(async () =>
@@ -321,6 +328,19 @@ namespace StremioWT
             b.Content = text;
             await Task.Delay(1500);
             b.Content = old;
+        }
+
+        // « stremiowt --diary » (raccourci du menu) ouvre directement le journal.
+        void OpenDiaryIfAsked()
+        {
+            if (Environment.GetCommandLineArgs().Contains("--diary")) _ = new Diary(entry => session?.ShareRating(entry)).ShowDialog(this);
+        }
+
+        Button DiaryButton()
+        {
+            var b = Secondary("📖  " + L.T("Mon journal"));
+            b.Click += async (o, e) => await new Diary(entry => session?.ShareRating(entry)).ShowDialog(this);
+            return b;
         }
 
         internal static void OpenUrl(string url) { try { Process.Start(new ProcessStartInfo(Program.IsMac ? "open" : "xdg-open", url) { UseShellExecute = false }); } catch { } }

@@ -38,6 +38,23 @@ namespace StremioWT
             return result.Task;
         }
 
+        // Question Oui / Non (Avalonia n'a pas de MessageBox) : renvoie true pour Oui.
+        public static Task<bool> Confirm(Window owner, string text)
+        {
+            var result = new TaskCompletionSource<bool>();
+            var yes = new Button { Content = L.T("Oui"), Classes = { "accent" }, Padding = new Thickness(18, 7) };
+            var no = new Button { Content = L.T("Non"), Padding = new Thickness(18, 7) };
+            var panel = new StackPanel { Margin = new Thickness(20), Spacing = 16 };
+            panel.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Foreground = Palette.Brush(Palette.Text) });
+            panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, HorizontalAlignment = HorizontalAlignment.Right, Children = { no, yes } });
+            var w = new Window { Title = "Stremio Watch Together", Width = 460, SizeToContent = SizeToContent.Height, CanResize = false, Background = Palette.Brush(Palette.Background), Content = panel, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            yes.Click += (s, e) => { result.TrySetResult(true); w.Close(); };
+            no.Click += (s, e) => w.Close();
+            w.Closed += (s, e) => result.TrySetResult(false);
+            if (owner != null && owner.IsVisible) w.ShowDialog(owner); else w.Show();
+            return result.Task;
+        }
+
         static Task ShowAlone(Window w) { var done = new TaskCompletionSource<bool>(); w.Closed += (s, e) => done.TrySetResult(true); w.Show(); return done.Task; }
     }
 

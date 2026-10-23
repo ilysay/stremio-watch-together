@@ -20,6 +20,7 @@
     <Compile Include="../src/**/*.cs" Exclude="../src/UI/**;../src/Platform/**;../src/Journal/JournalForms.cs;../src/Journal/Journal.Thumbs.cs;../src/Chat/ChatUi.cs;../src/obj/**;../src/bin/**" />
     <EmbeddedResource Include="../src/Stremio/inject.js" LogicalName="inject.js" />
     <EmbeddedResource Include="../src/assets/logo.png" LogicalName="logo.png" />
+    <EmbeddedResource Include="../src/assets/histo.png" LogicalName="histo.png" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.22" />
