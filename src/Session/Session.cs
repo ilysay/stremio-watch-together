@@ -52,6 +52,7 @@ namespace StremioWT
             Current = this;
             await AttachStremio(await StremioApp.EnsureRunning(stremioExe));
             Console.WriteLine("Connecté à Stremio.");
+            await ReadMyShell();
             _ = Task.Run(async () =>
             {
                 try
@@ -127,7 +128,15 @@ namespace StremioWT
                 Console.WriteLine($"{who} {(join ? "a rejoint" : "a quitté")} le salon.");
                 // Un nouveau venu doit connaître le mode admin en cours.
                 if (isHost && join && who != name && adminOn) _ = Post(new Dictionary<string, object> { ["type"] = "admin", ["on"] = true });
+                // Le nouveau venu doit connaître notre version de Stremio ; celui qui part est oublié.
+                if (join && who != name) AnnounceShell();
+                if (!join) ForgetShell(who);
                 if (!join && IsLoading(who)) OnBuffer(who, false);
+                return;
+            }
+            if (type == "info")
+            {
+                OnShellInfo(msg.TryGetValue("from", out var inf) ? inf as string : null, msg.TryGetValue("shell", out var ins) ? ins as string : null);
                 return;
             }
             if (type == "chat")
@@ -212,6 +221,7 @@ namespace StremioWT
                     {
                         connected = true;
                         if (ConnectedSince == null) ConnectedSince = DateTime.UtcNow;
+                        AnnounceShell();
                         Console.WriteLine(everConnected ? "Reconnecté au salon." : $"Connecté au salon {room}. Laisse cette fenêtre ouverte pendant le film (tu peux la réduire).");
                         everConnected = true;
                         PushStatus();

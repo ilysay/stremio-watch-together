@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Édition Linux : le cœur de l'appli (salon, synchro, Stremio, chat, journal) est partagé avec src/,
+       seule l'interface (Avalonia) et le démarrage sont propres à Linux. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>StremioWT</AssemblyName>
+    <RootNamespace>StremioWT</RootNamespace>
+    <Product>Stremio Watch Together</Product>
+    <AssemblyTitle>Stremio Watch Together</AssemblyTitle>
+    <Description>Watch Stremio with friends, perfectly in sync. Open source (MIT): https://github.com/ilysay/stremio-watch-together</Description>
+    <Company>ilyasb2</Company>
+    <Copyright>Copyright (c) 2026 ilyasb2, MIT license</Copyright>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <NoWarn>$(NoWarn);CA1416;SYSLIB0014</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../src/**/*.cs" Exclude="../src/UI/**;../src/Platform/**;../src/Journal/JournalForms.cs;../src/Journal/Journal.Thumbs.cs;../src/Chat/ChatUi.cs;../src/obj/**;../src/bin/**" />
+    <EmbeddedResource Include="../src/Stremio/inject.js" LogicalName="inject.js" />
+    <EmbeddedResource Include="../src/assets/logo.png" LogicalName="logo.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+  </ItemGroup>
+</Project>

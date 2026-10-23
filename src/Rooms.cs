@@ -26,7 +26,11 @@ namespace StremioWT
             var exe = StremioApp.FindExe(Config);
             if (exe != null) return exe;
             Telemetry.Error("stremio-missing");
-            throw new Exception(L.T("Stremio est introuvable. Installe Stremio pour Windows depuis https://www.stremio.com/downloads puis relance."));
+            throw new Exception(IsMac
+                ? L.T("Aucun navigateur compatible trouvé (Chrome, Edge ou Brave). Installe Google Chrome puis relance.")
+                : !IsWindows
+                ? L.T("Ni Stremio 4 ni navigateur compatible trouvé. Installe Stremio 4 (.deb) ou Google Chrome / Chromium, puis relance.")
+                : L.T("Stremio est introuvable. Installe Stremio pour Windows depuis https://www.stremio.com/downloads puis relance."));
         }
 
         static void Remember(string name, string stremioExe)

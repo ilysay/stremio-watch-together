@@ -5,7 +5,9 @@ namespace StremioWT
     static class Tunnel
     {
         static readonly string CloudflaredUrl = "https://github.com/cloudflare/cloudflared/releases/latest/download/" +
-            (IsWindows ? "cloudflared-windows-amd64.exe" : RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "cloudflared-linux-arm64" : "cloudflared-linux-amd64");
+            (IsWindows ? "cloudflared-windows-amd64.exe"
+             : IsMac ? (RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "cloudflared-darwin-arm64.tgz" : "cloudflared-darwin-amd64.tgz")
+             : RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "cloudflared-linux-arm64" : "cloudflared-linux-amd64");
         static readonly string CloudflaredExe = Path.Combine(DataDir, IsWindows ? "cloudflared.exe" : "cloudflared");
 
         internal static async Task<string> Start(int port)
@@ -23,6 +25,17 @@ namespace StremioWT
                     await res.Content.CopyToAsync(file);
                 }
 #if !NETFRAMEWORK
+                // Mac : cloudflared est livré dans une archive .tgz qui contient le seul fichier « cloudflared ».
+                if (IsMac)
+                {
+                    var archive = tmp + ".tgz";
+                    File.Move(tmp, archive);
+                    using (var gz = new GZipStream(File.OpenRead(archive), CompressionMode.Decompress))
+                    using (var tar = new System.Formats.Tar.TarReader(gz))
+                        for (var entry = tar.GetNextEntry(); entry != null; entry = tar.GetNextEntry())
+                            if (Path.GetFileName(entry.Name) == "cloudflared") { entry.ExtractToFile(tmp, true); break; }
+                    File.Delete(archive);
+                }
                 if (!IsWindows) File.SetUnixFileMode(tmp, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 #endif
                 File.Move(tmp, CloudflaredExe);

@@ -28,10 +28,12 @@
   let watchedKey = null;
 
   const V5 = /(^|\.)stremio\.com$/.test(location.hostname);
-  W.shell = V5 ? 5 : 4;
+  // Stremio Web dans un navigateur (Mac) : même interface que Stremio 5, mais la vidéo est un <video> HTML.
+  const WEB = V5 && !(window.chrome && window.chrome.webview);
+  W.shell = WEB ? 'web' : V5 ? 5 : 4;
   // Script arrivé après le chargement de la page : sous Stremio 5 l'interface a déjà gardé sa propre
   // référence à postMessage, nos espions ne verraient rien. Le programme recharge alors la page.
-  W.needsReload = V5 && document.readyState !== 'loading';
+  W.needsReload = V5 && !WEB && document.readyState !== 'loading';
   const now = () => Date.now();
   const toNode = m => { try { window.__wtSend(JSON.stringify(m)); } catch (e) {} };
   const debug = text => toNode({ type: 'debug', text: String(text).slice(0, 500) });
@@ -47,7 +49,7 @@
     return p.length >= 8 && TYPES.includes(dec(p[5])) ? ['#', 'player', dec(p[5]), dec(p[6]), dec(p[7])].join('/') : '#/player/other/' + (p[2] || '').slice(0, 24);
   };
   const sameVideo = (a, b) => videoKey(a) === videoKey(b);
-  const device = () => V5 ? mpv.device() : (() => { try { return angular.element(document.body).injector().get('player').device || null; } catch (e) { return null; } })();
+  const device = () => WEB ? html5.device() : V5 ? mpv.device() : (() => { try { return angular.element(document.body).injector().get('player').device || null; } catch (e) { return null; } })();
   const inPlayer = () => location.hash.indexOf('#/player/') === 0;
   const isReady = d => !!d && d.length > 0;
   const fmt = ms => { const s = Math.max(0, Math.round(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, x = s % 60;
@@ -83,7 +85,7 @@
     if (ev === 'mpv-command' && args[0] === 'loadfile') {
       loading = true; readyAt = 0;
       const h = location.hash;
-      privateSource = !isLocalUrl(args[1]);
+      privateSource = !isLocalUrl(args[1]) && !(WEB && /^blob:/.test(args[1] || ''));
       if (V5) mpv.reset();
       if (choosingSource) { choosingSource = false; hideBanner(); }
       wasFollowing = remoteOpenKey !== null && videoKey(h) === remoteOpenKey;
@@ -141,7 +143,40 @@
       },
     };
   })();
-  if (V5) mpv.install();
+  if (V5 && !WEB) mpv.install();
+
+  // Stremio Web : on observe le <video> de la page. Ses évènements sont traduits dans le format des commandes mpv
+  // (chargement, pause, déplacement) pour réutiliser la même logique. Nos propres changements déclenchent aussi
+  // ces évènements, un peu plus tard : ceux qui suivent de peu une action appliquée par nous sont ignorés.
+  const html5 = (() => {
+    let video = null, quietUntil = 0;
+    const quiet = () => { quietUntil = now() + 900; };
+    const out = (ev, args) => { if (now() >= quietUntil) onOut({ type: 6, args: [ev, args] }); };
+    const dev = {
+      get time() { return video ? video.currentTime * 1000 : 0; },
+      set time(ms) { if (video) { quiet(); video.currentTime = ms / 1000; } },
+      get paused() { return !video || video.paused; },
+      set paused(p) { if (!video) return; quiet(); if (p) video.pause(); else video.play().catch(() => {}); },
+      get length() { return video && isFinite(video.duration) ? video.duration * 1000 : 0; },
+      get state() { return !video || video.readyState < 1 ? 1 : video.seeking || video.readyState < 3 ? 2 : video.paused ? 4 : 3; },
+    };
+    function attach(v) {
+      video = v;
+      v.addEventListener('loadstart', () => onOut({ type: 6, args: ['mpv-command', ['loadfile', v.currentSrc || v.src || '']] }));
+      v.addEventListener('play', () => out('mpv-set-prop', ['pause', false]));
+      v.addEventListener('pause', () => { if (!v.ended) out('mpv-set-prop', ['pause', true]); });
+      v.addEventListener('seeked', () => out('mpv-set-prop', ['time-pos', v.currentTime]));
+      // La vidéo a pu commencer à charger avant qu'on la voie : on signale ce chargement.
+      if (v.readyState > 0 || v.currentSrc) onOut({ type: 6, args: ['mpv-command', ['loadfile', v.currentSrc || v.src || '']] });
+    }
+    return {
+      device: () => dev,
+      poll() {
+        const v = inPlayer() ? document.querySelector('video') : null;
+        if (v !== video) { if (v) attach(v); else video = null; }
+      },
+    };
+  })();
 
   function hook() {
     if (V5) return;
@@ -411,6 +446,7 @@
   }
 
   setInterval(() => {
+    if (WEB) html5.poll();
     hook();
     hookPlayer();
     reportBuffering();

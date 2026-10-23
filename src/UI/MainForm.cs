@@ -311,6 +311,13 @@ namespace StremioWT
             });
         }
 
+        // « · Stremio 5 », avec ⚠ si cette version ne comprend pas les liens de torrent de la nôtre.
+        string ShellNote(string who)
+        {
+            var label = Session.ShellLabel(session.ShellOf(who));
+            return label == null ? "" : "  · " + label + (session.SameShellFamily(who) ? "" : " ⚠");
+        }
+
         void RefreshState()
         {
             if (session == null) return;
@@ -318,7 +325,7 @@ namespace StremioWT
             statusText.Text = session.Connected ? L.F(session.IsHost ? "Salon {0} · tu héberges" : "Salon {0} · connecté", session.Room) : L.F("Salon {0} · connexion…", session.Room);
             shownMembers = session.Members.ToArray();
             var lines = shownMembers.Select(n =>
-                n + (session.IsLoading(n) ? L.T("   ⏳ chargement…") : "") + (session.IsNotWaited(n) ? L.T("   ⏩ on ne l'attend pas") : "")).ToList();
+                n + ShellNote(n) + (session.IsLoading(n) ? L.T("   ⏳ chargement…") : "") + (session.IsNotWaited(n) ? L.T("   ⏩ on ne l'attend pas") : "")).ToList();
             if (!membersList.Items.Cast<string>().SequenceEqual(lines))
             {
                 membersList.Items.Clear();

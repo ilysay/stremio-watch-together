@@ -67,6 +67,7 @@ namespace StremioWT
         }
 
         internal static bool IsWindows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        internal static bool IsMac => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
 
         static Dictionary<string, object> LoadConfig()
         {

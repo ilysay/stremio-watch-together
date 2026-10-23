@@ -10,6 +10,7 @@ Une petite appli, un code d'invitation, sans compte, sans serveur.
 [![Télécharger](https://img.shields.io/github/v/release/ilysay/stremio-watch-together?label=t%C3%A9l%C3%A9charger&style=for-the-badge&color=2f80ff)](https://github.com/ilysay/stremio-watch-together/releases/latest)
 
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0c2048?style=flat-square)
+[![Linux bêta](https://img.shields.io/badge/Linux-b%C3%AAta-f5a623?style=flat-square&logo=linux&logoColor=white)](linux/README.md)
 ![Taille](https://img.shields.io/badge/taille-~450%20Ko-0c2048?style=flat-square)
 ![Langues](https://img.shields.io/badge/langues-10-0c2048?style=flat-square)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-0c2048?style=flat-square)](LICENSE)
@@ -19,6 +20,13 @@ Une petite appli, un code d'invitation, sans compte, sans serveur.
 <img src="docs/preview.png" width="820" alt="Écran d'accueil et salon avec le chat">
 
 </div>
+
+## Télécharger
+
+| | |
+|---|---|
+| 🪟 **Windows** | **[Télécharger StremioWT.exe](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT.exe)** puis double-cliquez dessus. Il faut l'[application Stremio pour Windows](https://www.stremio.com/downloads). |
+| 🐧 **Linux** (bêta) | **[Télécharger StremioWT-linux-x64](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT-linux-x64)**, puis suivez le **[guide Linux](linux/README.md)** (un script d'installation, page en anglais). |
 
 ## En vidéo
 
@@ -35,6 +43,7 @@ Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord
 - 🔗 **Rejoindre en un clic** : l'hôte copie un code d'invitation (`WT-…`), les amis le collent, c'est tout. Si le code est déjà dans le presse-papier, ouvrir l'appli suffit pour entrer.
 - ⏳ **Attend ceux qui chargent** : si le flux de quelqu'un charge, tout le monde se met en pause et reprend ensemble. Un garde-fou de 30 secondes et un clic « ne pas l'attendre » évitent de bloquer la soirée.
 - 👑 **Contrôle de l'hôte** : un interrupteur, et seul l'hôte peut mettre pause, avancer ou changer d'épisode.
+- 👀 **La version de Stremio de chacun** à côté de son pseudo, avec un avertissement quand les versions n'ouvrent pas les torrents de la même façon.
 - 💬 **Chat avec émotes et GIF**, dans la fenêtre et par-dessus la vidéo (touche **T** dans Stremio).
 - 🛡️ **Les sources privées restent privées** : les liens Real-Debrid ou d'autres débrideurs ne sont jamais envoyés au salon. Les amis reçoivent l'épisode et choisissent leur propre source.
 - 📔 **Mon journal** : tout ce que vous regardez (films, séries, animes) est noté avec affiches et notes. Les films s'exportent vers Letterboxd en un clic.
@@ -43,7 +52,10 @@ Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord
 
 ## Démarrage rapide
 
-**Il faut :** Windows 10 ou 11 et l'[application Stremio pour PC](https://www.stremio.com/downloads) officielle : Stremio 5 (la version actuelle) ou Stremio 4.
+> [!TIP]
+> **🐧 Sous Linux ?** Suivez plutôt le **[guide Linux](linux/README.md)** (page en anglais). Amis sous Linux et sous Windows peuvent partager le même salon. C'est une bêta, donc **vos retours sont les bienvenus** : [ouvrez une issue](https://github.com/ilysay/stremio-watch-together/issues) pour nous dire comment ça s'est passé.
+
+**Il faut (Windows) :** Windows 10 ou 11 et l'[application Stremio pour PC](https://www.stremio.com/downloads) officielle : Stremio 5 (la version actuelle) ou Stremio 4.
 
 ### Organiser une soirée
 1. [Téléchargez `StremioWT.exe`](https://github.com/ilysay/stremio-watch-together/releases/latest) et double-cliquez dessus.
@@ -136,9 +148,9 @@ Oui : cochez « amis sur le même wifi seulement » avant d'héberger. Aucun tun
 </details>
 
 <details>
-<summary><b>Sur téléphone ou Mac ?</b></summary>
+<summary><b>Sur Linux, Mac ou téléphone ?</b></summary>
 
-Pas pour l'instant : l'appli s'appuie sur la version Windows de Stremio (4 ou 5). Des amis sur Stremio 4 et Stremio 5 peuvent partager le même salon.
+**Linux : oui, en bêta !** Voir la [page Linux](linux/README.md). Amis sous Linux et sous Windows peuvent être dans le même salon. Mac et téléphone : pas pour l'instant. Des amis sur Stremio 4 et Stremio 5 peuvent partager le même salon.
 </details>
 
 ## Compiler soi-même

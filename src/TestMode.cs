@@ -18,7 +18,7 @@ namespace StremioWT
             Active = true;
             Config["telemetry"] = false;
             Output += line => Console.Error.WriteLine(line);
-            var os = IsWindows ? "Windows" : "Linux";
+            var os = IsWindows ? "Windows" : IsMac ? "Mac" : "Linux";
             try
             {
                 Session session;
