@@ -10,7 +10,6 @@ One tiny app, one invite code, no account, no server.
 [![Download](https://img.shields.io/github/v/release/ilysay/stremio-watch-together?label=download&style=for-the-badge&color=2f80ff)](https://github.com/ilysay/stremio-watch-together/releases/latest)
 
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0c2048?style=flat-square)
-[![Linux beta](https://img.shields.io/badge/Linux-beta-f5a623?style=flat-square&logo=linux&logoColor=white)](linux/README.md)
 ![Size](https://img.shields.io/badge/size-~450%20KB-0c2048?style=flat-square)
 ![Languages](https://img.shields.io/badge/languages-10-0c2048?style=flat-square)
 [![License: MIT](https://img.shields.io/badge/license-MIT-0c2048?style=flat-square)](LICENSE)
@@ -20,13 +19,6 @@ One tiny app, one invite code, no account, no server.
 <img src="docs/preview.png" width="820" alt="Home screen and a room with chat">
 
 </div>
-
-## Download
-
-| | |
-|---|---|
-| 🪟 **Windows** | **[Download StremioWT.exe](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT.exe)** and double-click it. Needs the [Stremio app for Windows](https://www.stremio.com/downloads). |
-| 🐧 **Linux** (beta) | **[Download StremioWT-linux-x64](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT-linux-x64)**, then follow the **[Linux guide](linux/README.md)** (Stremio 4 `.deb` + 3 commands). |
 
 ## See it in action
 
@@ -51,10 +43,7 @@ Stremio has no watch party. Screen sharing on Discord kills the quality and the 
 
 ## Quick start
 
-> [!TIP]
-> **🐧 On Linux?** Follow the **[Linux guide](linux/README.md)** instead. Linux and Windows friends can share the same room. It's a beta, so **feedback is very welcome**: [open an issue](https://github.com/ilysay/stremio-watch-together/issues) and tell us how it went.
-
-**You need (Windows):** Windows 10 or 11 and the official [Stremio desktop app](https://www.stremio.com/downloads): Stremio 5 (the current version) or Stremio 4.
+**You need:** Windows 10 or 11 and the official [Stremio desktop app](https://www.stremio.com/downloads): Stremio 5 (the current version) or Stremio 4.
 
 ### Host a movie night
 1. [Download `StremioWT.exe`](https://github.com/ilysay/stremio-watch-together/releases/latest) and double-click it.
@@ -147,9 +136,9 @@ Yes, turn on "friends on the same Wi-Fi only" before hosting. No tunnel is opene
 </details>
 
 <details>
-<summary><b>Does it work on Linux, Mac or phone?</b></summary>
+<summary><b>Does it work on phone or Mac?</b></summary>
 
-**Linux: yes, in beta!** See the [Linux page](linux/README.md). Linux and Windows friends can be in the same room. Mac and phones: not for now. Friends on Stremio 4 and Stremio 5 can share the same room.
+Not for now: it relies on the Windows version of Stremio (4 or 5). Friends on Stremio 4 and Stremio 5 can share the same room.
 </details>
 
 <details>
