@@ -12,7 +12,7 @@ namespace StremioWT
         // Code d'invitation présent dans le presse-papier (sauf celui qu'on a soi-même créé en hébergeant).
         internal static (string server, string room)? InviteFromClipboard()
         {
-            var clip = Sta(() => Clipboard.ContainsText() ? Clipboard.GetText() : "") ?? "";
+            var clip = GetClipboardText();
             var lastHosted = Config.TryGetValue("lastHosted", out var lh) ? lh as string : null;
             return lastHosted != null && clip.Contains(lastHosted) ? null : Invite.Parse(clip);
         }
@@ -63,7 +63,7 @@ namespace StremioWT
             }
             var code = Invite.Make(publicUrl, room);
             Config["lastHosted"] = code;
-            Sta(() => { Clipboard.SetText(code); return true; });
+            SetClipboardText(code);
             Console.WriteLine(L.T("Code d'invitation copié : colle-le à tes amis."));
             Remember(name, stremioExe);
             _ = Telemetry.Send("host", 1);

@@ -1,0 +1,46 @@
+name: Linux beta test
+
+on:
+  push:
+    paths: ["src/**", "linux/**", "tests/linux/**"]
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build Linux edition
+        run: dotnet publish linux/StremioWT.Linux.csproj -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o out
+
+      - name: Install Stremio for Linux and a virtual screen
+        run: |
+          # Sans ça, la mise à jour des pages de manuel peut bloquer l'installation plusieurs minutes.
+          sudo rm -f /var/lib/man-db/auto-update
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb imagemagick libgl1-mesa-dri fonts-noto-color-emoji > /dev/null
+          curl -fsSL -o stremio.deb https://dl.strem.io/shell-linux/v4.4.168/stremio_4.4.168-1_amd64.deb
+          sudo apt-get install -y -qq ./stremio.deb > /dev/null
+          which stremio
+
+      - name: Run tests
+        env:
+          DISPLAY: ":99"
+          LIBGL_ALWAYS_SOFTWARE: "1"
+          QTWEBENGINE_CHROMIUM_FLAGS: "--no-sandbox"
+        run: |
+          Xvfb :99 -screen 0 1600x1000x24 &
+          sleep 3
+          bash tests/linux/run-test.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-test
+          path: artifacts/

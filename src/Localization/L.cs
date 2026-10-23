@@ -12,7 +12,7 @@ namespace StremioWT
 
         public static string Lang { get; private set; } = "en";
         // Arabe : lecture de droite à gauche (sinon les mots latins, « StremioWT », « IP »…, se placent mal dans la phrase).
-        public static System.Windows.Forms.RightToLeft Direction => Lang == "ar" ? System.Windows.Forms.RightToLeft.Yes : System.Windows.Forms.RightToLeft.No;
+        public static bool IsRightToLeft => Lang == "ar";
         static Dictionary<string, string> current = new Dictionary<string, string>();
         static Dictionary<string, string> english = new Dictionary<string, string>();
 
@@ -250,6 +250,30 @@ namespace StremioWT
               "معطّل: يمكن للجميع الإيقاف المؤقت أو التقديم أو تغيير الحلقة.", "বন্ধ: সবাই থামাতে, এগোতে বা পর্ব বদলাতে পারবেন।",
               "Выкл.: все могут ставить паузу, перематывать и менять серию.", "Nonaktif: semua orang bisa jeda, maju, atau ganti episode."),
             E("Envoyer", "Send", "Enviar", "Enviar", "发送", "भेजें", "إرسال", "পাঠান", "Отправить", "Kirim"),
+            E("Annuler", "Cancel", "Cancelar", "Cancelar", "取消", "रद्द करें", "إلغاء", "বাতিল", "Отмена", "Batal"),
+            E("Fermer", "Close", "Cerrar", "Fechar", "关闭", "बंद करें", "إغلاق", "বন্ধ করুন", "Закрыть", "Tutup"),
+            E("Signaler un bug", "Report a bug", "Informar de un error", "Relatar um bug", "报告问题", "बग की रिपोर्ट करें", "الإبلاغ عن خطأ", "বাগ রিপোর্ট করুন", "Сообщить об ошибке", "Laporkan bug"),
+            E("Signaler ce problème", "Report this problem", "Informar de este problema", "Relatar este problema", "报告此问题", "इस समस्या की रिपोर्ट करें", "الإبلاغ عن هذه المشكلة", "এই সমস্যাটি রিপোর্ট করুন", "Сообщить об этой проблеме", "Laporkan masalah ini"),
+            E("Envoyer un rapport de bug au développeur ?", "Send a bug report to the developer?", "¿Enviar un informe de error al desarrollador?", "Enviar um relatório de bug ao desenvolvedor?",
+              "要向开发者发送错误报告吗？", "डेवलपर को बग रिपोर्ट भेजें?", "إرسال تقرير خطأ إلى المطوّر؟", "ডেভেলপারকে বাগ রিপোর্ট পাঠাবেন?", "Отправить отчёт об ошибке разработчику?", "Kirim laporan bug ke pengembang?"),
+            E("Décris ce qui s'est passé (facultatif) :", "Describe what happened (optional):", "Describe lo que pasó (opcional):", "Descreva o que aconteceu (opcional):",
+              "描述发生了什么（可选）：", "बताएं क्या हुआ (वैकल्पिक):", "صف ما حدث (اختياري):", "কী ঘটেছে লিখুন (ঐচ্ছিক):", "Опишите, что произошло (необязательно):", "Jelaskan apa yang terjadi (opsional):"),
+            E("Ce qui sera envoyé au développeur : ton message, ta version de StremioWT et de ton système, et le journal de l'appli ci-dessous (il peut contenir ton pseudo et les titres regardés).",
+              "What will be sent to the developer: your message, your StremioWT and system versions, and the app log below (it may contain your nickname and the titles you watched).",
+              "Lo que se enviará al desarrollador: tu mensaje, tus versiones de StremioWT y del sistema, y el registro de la app de abajo (puede contener tu apodo y los títulos que viste).",
+              "O que será enviado ao desenvolvedor: sua mensagem, suas versões do StremioWT e do sistema, e o registro do app abaixo (pode conter seu apelido e os títulos assistidos).",
+              "将发送给开发者的内容：你的留言、StremioWT 和系统版本，以及下方的应用日志（可能包含你的昵称和观看过的标题）。",
+              "डेवलपर को भेजा जाएगा: आपका संदेश, StremioWT और सिस्टम का वर्शन, और नीचे ऐप का लॉग (इसमें आपका निकनेम और देखे गए टाइटल हो सकते हैं)।",
+              "ما سيُرسل إلى المطوّر: رسالتك، وإصدار StremioWT ونظامك، وسجل التطبيق أدناه (قد يحتوي على اسمك المستعار والعناوين التي شاهدتها).",
+              "ডেভেলপারের কাছে যা পাঠানো হবে: আপনার বার্তা, StremioWT ও সিস্টেমের ভার্সন, এবং নিচের অ্যাপ লগ (এতে আপনার ডাকনাম ও দেখা টাইটেল থাকতে পারে)।",
+              "Разработчику будет отправлено: ваше сообщение, версии StremioWT и системы и журнал приложения ниже (в нём могут быть ваш ник и просмотренные названия).",
+              "Yang akan dikirim ke pengembang: pesanmu, versi StremioWT dan sistemmu, serta log aplikasi di bawah (bisa berisi nama panggilanmu dan judul yang ditonton)."),
+            E("Un rapport vient d'être envoyé. Réessaie dans {0} min.", "A report was just sent. Try again in {0} min.", "Se acaba de enviar un informe. Vuelve a intentarlo en {0} min.", "Um relatório acabou de ser enviado. Tente de novo em {0} min.",
+              "刚刚已发送过报告。请 {0} 分钟后再试。", "अभी एक रिपोर्ट भेजी गई है। {0} मिनट बाद फिर कोशिश करें।", "تم إرسال تقرير للتو. أعد المحاولة بعد {0} دقيقة.", "এইমাত্র একটি রিপোর্ট পাঠানো হয়েছে। {0} মিনিট পরে আবার চেষ্টা করুন।", "Отчёт только что отправлен. Попробуйте снова через {0} мин.", "Laporan baru saja dikirim. Coba lagi dalam {0} menit."),
+            E("Envoi…", "Sending…", "Enviando…", "Enviando…", "正在发送…", "भेजा जा रहा है…", "جارٍ الإرسال…", "পাঠানো হচ্ছে…", "Отправка…", "Mengirim…"),
+            E("Rapport envoyé, merci !", "Report sent, thank you!", "Informe enviado, ¡gracias!", "Relatório enviado, obrigado!", "报告已发送，谢谢！", "रिपोर्ट भेज दी गई, धन्यवाद!", "تم إرسال التقرير، شكرًا!", "রিপোর্ট পাঠানো হয়েছে, ধন্যবাদ!", "Отчёт отправлен, спасибо!", "Laporan terkirim, terima kasih!"),
+            E("Envoi impossible. Vérifie ta connexion et réessaie plus tard.", "Couldn't send. Check your connection and try again later.", "No se pudo enviar. Revisa tu conexión e inténtalo más tarde.", "Não foi possível enviar. Verifique sua conexão e tente mais tarde.",
+              "发送失败。请检查网络后稍后再试。", "भेजा नहीं जा सका। अपना कनेक्शन जांचें और बाद में फिर कोशिश करें।", "تعذّر الإرسال. تحقّق من اتصالك وأعد المحاولة لاحقًا.", "পাঠানো যায়নি। সংযোগ দেখে পরে আবার চেষ্টা করুন।", "Не удалось отправить. Проверьте подключение и попробуйте позже.", "Gagal mengirim. Periksa koneksi lalu coba lagi nanti."),
             E("Quitter", "Quit", "Salir", "Sair", "退出", "बाहर निकलें", "خروج", "বের হন", "Выйти", "Keluar"),
             E("Participants", "Participants", "Participantes", "Participantes", "参与者", "प्रतिभागी", "المشاركون", "অংশগ্রহণকারী", "Участники", "Peserta"),
             E("Participants · clique sur un pseudo pour ne plus l'attendre", "Participants · click a name to stop waiting for them",

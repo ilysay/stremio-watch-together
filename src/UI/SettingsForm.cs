@@ -6,7 +6,7 @@ namespace StremioWT
         {
             Dialogs.Dark(this);
             Text = L.T("Paramètres");
-            ClientSize = new Size(400, 206);
+            ClientSize = new Size(400, 262);
             // Langue : appliquée en relançant StremioWT (toute l'interface est construite au démarrage).
             Controls.Add(Dialogs.Text(L.T("Langue"), Theme.Bold, Theme.Text, 20, 20));
             var lang = new FlatButton(L.Languages.First(l => l.Code == L.Lang).Name + "   ▾", primary: false) { Location = new Point(20, 46), Size = new Size(360, 38) };
@@ -29,6 +29,9 @@ namespace StremioWT
             stats.CheckedChanged += (s, e) => Telemetry.Enabled = stats.Checked;
             Controls.Add(stats);
             Controls.Add(Dialogs.Text(L.T("Compte combien de personnes utilisent StremioWT.\nAucun pseudo, titre, lien ni adresse IP n'est enregistré."), Theme.Small, Theme.Muted, 20, 138, 360, 56));
+            var report = new FlatButton("🐞  " + L.T("Signaler un bug"), primary: false) { Location = new Point(20, 204), Size = new Size(360, 38) };
+            report.Click += (s, e) => new ReportForm().ShowDialog(this);
+            Controls.Add(report);
         }
     }
 

@@ -11,6 +11,8 @@ namespace StremioWT
         readonly FlatButton hostButton = new FlatButton(L.T("Héberger un salon"), primary: false);
         readonly ToggleSwitch localBox = new ToggleSwitch(L.T("Option : amis sur le même wifi seulement (sans Internet)")) { ForeColor = Theme.Muted, Font = Theme.Small, BackColor = Theme.Card };
         readonly Label startStatus = new Label { AutoSize = false, ForeColor = Theme.Muted, Font = Theme.Small };
+        // Affiché sous une erreur de l'accueil : ouvre le rapport de bug avec ce message d'erreur.
+        readonly FlatButton reportButton = new FlatButton("🐞  " + L.T("Signaler ce problème"), primary: false) { Location = new Point(24, 578), Size = new Size(220, 34), Visible = false };
 
         readonly Panel sessionPanel = new Panel { Dock = DockStyle.Fill, Visible = false };
         readonly Label statusDot = new Label { Text = "●", AutoSize = true, ForeColor = Theme.Muted, Font = new Font("Segoe UI", 13f), BackColor = Color.Transparent };
@@ -45,7 +47,7 @@ namespace StremioWT
             MaximizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
             DoubleBuffered = true;
-            RightToLeft = L.Direction;
+            RightToLeft = L.IsRightToLeft ? RightToLeft.Yes : RightToLeft.No;
             try { Icon = Theme.AppIcon(); } catch { }
             BuildStart();
             BuildSession();
@@ -118,6 +120,7 @@ namespace StremioWT
             hostCard.Controls.AddRange(new Control[] { hostButton, localBox });
 
             startStatus.SetBounds(24, 514, 432, 60);
+            reportButton.Click += (s, e) => new ReportForm(startStatus.Text).ShowDialog(this);
             joinButton.Click += (s, e) => StartJoin();
             hostButton.Click += (s, e) => StartHost();
             codeBox.Box.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; StartJoin(); } };
@@ -133,7 +136,7 @@ namespace StremioWT
                 var version = await Updates.NewerVersion();
                 if (version != null && !IsDisposed) { update.Text = L.F("Nouvelle version {0} disponible : télécharger", version); update.Visible = true; }
             };
-            startPanel.Controls.AddRange(new Control[] { Header(), nameCard, joinCard, hostCard, startStatus, update, journalStart, settings });
+            startPanel.Controls.AddRange(new Control[] { Header(), nameCard, joinCard, hostCard, startStatus, reportButton, update, journalStart, settings });
         }
 
         void BuildSession()
@@ -233,6 +236,7 @@ namespace StremioWT
             joinButton.Enabled = hostButton.Enabled = codeBox.Enabled = nameBox.Enabled = localBox.Enabled = !busy;
             startStatus.ForeColor = Theme.Muted;
             startStatus.Text = message;
+            reportButton.Visible = false;
             UseWaitCursor = busy;
         }
 
@@ -240,6 +244,7 @@ namespace StremioWT
         {
             startStatus.ForeColor = Theme.Bad;
             startStatus.Text = message;
+            reportButton.Visible = true;
         }
 
         void StartJoin()
@@ -300,7 +305,7 @@ namespace StremioWT
                 try { await s.Run(); }
                 catch (Exception e)
                 {
-                    Telemetry.Send("error", detail: "crash").Wait(3000);
+                    if (!Telemetry.AnyErrorSent) Telemetry.Send("error", detail: "crash").Wait(3000);
                     Ui(() => Program.Fail(L.T("Erreur : ") + e.Message));
                 }
             });

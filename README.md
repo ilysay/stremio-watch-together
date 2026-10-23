@@ -10,6 +10,7 @@ One tiny app, one invite code, no account, no server.
 [![Download](https://img.shields.io/github/v/release/ilysay/stremio-watch-together?label=download&style=for-the-badge&color=2f80ff)](https://github.com/ilysay/stremio-watch-together/releases/latest)
 
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0c2048?style=flat-square)
+[![Linux beta](https://img.shields.io/badge/Linux-beta-f5a623?style=flat-square&logo=linux&logoColor=white)](linux/README.md)
 ![Size](https://img.shields.io/badge/size-~450%20KB-0c2048?style=flat-square)
 ![Languages](https://img.shields.io/badge/languages-10-0c2048?style=flat-square)
 [![License: MIT](https://img.shields.io/badge/license-MIT-0c2048?style=flat-square)](LICENSE)
@@ -42,6 +43,9 @@ Stremio has no watch party. Screen sharing on Discord kills the quality and the 
 - 🪶 **Tiny and portable**: a single ~450 KB `.exe`, nothing to install, nothing to configure.
 
 ## Quick start
+
+> [!TIP]
+> **🐧 New: Linux beta!** Linux and Windows friends can share the same room. [Get the Linux version](linux/README.md). It's a beta, so **feedback is very welcome**: [open an issue](https://github.com/ilysay/stremio-watch-together/issues) and tell us how it went.
 
 **You need:** Windows 10 or 11 and the official [Stremio desktop app](https://www.stremio.com/downloads): Stremio 5 (the current version) or Stremio 4.
 
@@ -83,6 +87,7 @@ flowchart LR
 | 🧾 **No account** | No sign-up, no login, nothing stored about you on any server. |
 | 💬 **Chat** | Plain text only (300 characters max), 5 messages per 10 s. GIFs are only shown from Giphy and Tenor, so a link can't be used to grab viewers' IPs. |
 | 📊 **Anonymous stats** | The app sends a random install ID, the version, the language, room size, error codes and rounded session length to count users and spot bugs. Never names, titles, links, chat messages or IPs. Turn it off in ⚙ **Settings**. The [server code](telemetry/worker.js) is public. |
+| 🐞 **Bug reports** | Only if you click **Report a bug** (in ⚙ **Settings** or under an error) and then **Send**. You see exactly what's sent first: your message, your app and system versions, and the app log (which may include your nickname and titles you watched). Kept 30 days, never shared. |
 | 🔍 **Open source** | Every line is here, under the MIT license. The exe in each release is built from this code. |
 
 **"Windows protected your PC"?** The exe isn't code-signed (signing costs a few hundred euros a year), so SmartScreen warns about any new download. Click **More info → Run anyway**. You can also build it yourself from source (see below) or compare the SHA-256 checksum listed in the release notes:
@@ -94,6 +99,15 @@ Get-FileHash .\StremioWT.exe -Algorithm SHA256
 **Antivirus:** [VirusTotal](https://www.virustotal.com/gui/file/a41f938558bddb85695cba07b26a50bfd9ce48799bdd358ee6dffd2b535971a0) shows 1/71, a Malwarebytes machine-learning guess (`MachineLearning/Anomalous`) typical of new, unsigned tools. It is being reported to Malwarebytes as a false positive. All 70 other engines, including Microsoft Defender, find nothing.
 
 ## FAQ
+
+<details>
+<summary><b>"Stremio not found"?</b></summary>
+
+StremioWT drives the **Stremio desktop app** on your PC, so it has to find it first. It looks for a Stremio that's already open, then in the usual install folders (`AppData\Local\Programs\Stremio`, `Program Files`…). You get this message when:
+
+- **You only use Stremio in the browser** (web.stremio.com) or on a phone/TV: install the free [Stremio app for Windows](https://www.stremio.com/downloads). The web version can't be synced.
+- **Stremio is installed somewhere unusual** (another drive, a portable copy…): just **open Stremio first, then StremioWT**. It detects the running Stremio wherever it is and remembers it for next time.
+</details>
 
 <details>
 <summary><b>Does everyone need Real-Debrid?</b></summary>
@@ -126,9 +140,9 @@ Yes, turn on "friends on the same Wi-Fi only" before hosting. No tunnel is opene
 </details>
 
 <details>
-<summary><b>Does it work on phone, Mac or Linux?</b></summary>
+<summary><b>Does it work on Linux, Mac or phone?</b></summary>
 
-Not for now: it relies on the Windows version of Stremio (4 or 5). Friends on Stremio 4 and Stremio 5 can share the same room.
+**Linux: yes, in beta!** See the [Linux page](linux/README.md). Linux and Windows friends can be in the same room. Mac and phones: not for now. Friends on Stremio 4 and Stremio 5 can share the same room.
 </details>
 
 <details>

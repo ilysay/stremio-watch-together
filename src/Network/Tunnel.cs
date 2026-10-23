@@ -4,8 +4,9 @@ namespace StremioWT
 {
     static class Tunnel
     {
-        const string CloudflaredUrl = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe";
-        static readonly string CloudflaredExe = Path.Combine(DataDir, "cloudflared.exe");
+        static readonly string CloudflaredUrl = "https://github.com/cloudflare/cloudflared/releases/latest/download/" +
+            (IsWindows ? "cloudflared-windows-amd64.exe" : RuntimeInformation.OSArchitecture == Architecture.Arm64 ? "cloudflared-linux-arm64" : "cloudflared-linux-amd64");
+        static readonly string CloudflaredExe = Path.Combine(DataDir, IsWindows ? "cloudflared.exe" : "cloudflared");
 
         internal static async Task<string> Start(int port)
         {
@@ -15,7 +16,15 @@ namespace StremioWT
                 Console.WriteLine(L.T("Ça peut prendre une minute, une seule fois."));
                 Directory.CreateDirectory(DataDir);
                 var tmp = CloudflaredExe + ".part";
-                using (var wc = new WebClient()) await wc.DownloadFileTaskAsync(CloudflaredUrl, tmp);
+                using (var res = await Http.GetAsync(CloudflaredUrl, HttpCompletionOption.ResponseHeadersRead))
+                using (var file = File.Create(tmp))
+                {
+                    res.EnsureSuccessStatusCode();
+                    await res.Content.CopyToAsync(file);
+                }
+#if !NETFRAMEWORK
+                if (!IsWindows) File.SetUnixFileMode(tmp, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+#endif
                 File.Move(tmp, CloudflaredExe);
             }
             var psi = new ProcessStartInfo(CloudflaredExe, $"tunnel --no-autoupdate --url http://localhost:{port}")
@@ -88,6 +97,7 @@ namespace StremioWT
 
         public static void KillOnExit(Process p)
         {
+            if (!IsWindows) { AppDomain.CurrentDomain.ProcessExit += (s, e) => { try { if (!p.HasExited) p.Kill(); } catch { } }; return; }
             try
             {
                 if (handle == IntPtr.Zero)

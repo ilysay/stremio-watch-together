@@ -11,7 +11,7 @@ namespace StremioWT
             f.MaximizeBox = f.MinimizeBox = false;
             f.StartPosition = FormStartPosition.CenterParent;
             f.ShowInTaskbar = false;
-            f.RightToLeft = L.Direction;
+            f.RightToLeft = L.IsRightToLeft ? RightToLeft.Yes : RightToLeft.No;
             try { f.Icon = Theme.AppIcon(); } catch { }
             f.HandleCreated += (s, e) => MainForm.DarkTitleBar(f.Handle);
         }

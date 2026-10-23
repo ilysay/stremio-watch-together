@@ -1,0 +1,6 @@
+<Project>
+  <!-- Version commune aux éditions Windows et Linux : dans un salon, tout le monde doit avoir la même « majeure.mineure ». -->
+  <PropertyGroup>
+    <Version>3.5.13</Version>
+  </PropertyGroup>
+</Project>

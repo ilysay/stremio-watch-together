@@ -3,12 +3,15 @@
 //   POST /ping   { id, v, event, size?, lang?, detail? }   ← envoyé par StremioWT
 //   GET  /stats?key=<STATS_KEY>                          → page de statistiques (protégée par ta clé)
 //   GET  /gif?q=…                                         → recherche de GIF pour le chat (via Giphy)
+//   POST /report { v, message, report }                   ← rapport de bug, envoyé seulement si l'utilisateur clique « Envoyer »
 //
 // Ce qui est enregistré : un identifiant d'installation ALÉATOIRE (sans lien avec la personne),
 // la version, la langue de l'appli, le type d'événement (launch / host / join / error / session),
 // la taille du salon, le type de problème rencontré, la durée arrondie d'une séance,
 // et le pays (déduit par Cloudflare, l'adresse IP elle-même n'est jamais stockée).
 // Ce qui n'est JAMAIS enregistré : adresse IP, pseudo, titres, liens, messages du chat, codes de salon.
+// Exception volontaire : un rapport de bug (message + journal de l'appli, que l'utilisateur voit avant d'envoyer),
+// gardé 30 jours. Limites : 3 par minute et par expéditeur (liaison facultative « REPORT_LIMIT », rien n'est stocké), 30 par heure au total.
 //
 // Liaisons à configurer dans Cloudflare : base D1 nommée « DB », secrets « STATS_KEY » et « GIPHY_KEY ».
 
@@ -38,6 +41,9 @@ async function ensureTables(db) {
     db.prepare(`CREATE TABLE IF NOT EXISTS details (
        day TEXT NOT NULL, id TEXT NOT NULL, kind TEXT NOT NULL, detail TEXT NOT NULL, v TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 1,
        PRIMARY KEY (day, id, kind, detail, v))`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS reports (
+       id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, v TEXT NOT NULL, message TEXT NOT NULL, report TEXT NOT NULL,
+       sent INTEGER NOT NULL DEFAULT 0)`),
   ]);
   tablesReady = true;
 }
@@ -49,6 +55,7 @@ export default {
       if (url.pathname === '/gif') return await gifs(url, env, ctx);
       await ensureTables(env.DB);
       if (url.pathname === '/ping' && request.method === 'POST') return await ping(request, env);
+      if (url.pathname === '/report' && request.method === 'POST') return await report(request, env);
       if (url.pathname === '/stats' && request.method === 'GET') return await stats(url, env);
       return new Response('Stremio Watch Together : compteur anonyme\n', { headers: { 'content-type': 'text/plain; charset=utf-8' } });
     } catch (e) {
@@ -113,6 +120,28 @@ async function ping(request, env) {
     if (LANGS.includes(lang)) writes.push(addDetail('lang', lang));
   }
   await env.DB.batch(writes);
+  return new Response(null, { status: 204 });
+}
+
+async function report(request, env) {
+  if (env.REPORT_LIMIT) {
+    // Compté en mémoire par Cloudflare, l'adresse n'est pas enregistrée.
+    const { success } = await env.REPORT_LIMIT.limit({ key: request.headers.get('cf-connecting-ip') || '?' });
+    if (!success) return new Response('trop de rapports', { status: 429 });
+  }
+  const text = await request.text();
+  if (text.length > 80000) return new Response('trop long', { status: 413 });
+  let m;
+  try { m = JSON.parse(text); } catch { return new Response('json invalide', { status: 400 }); }
+  const v = String(m.v || ''), message = String(m.message || '').slice(0, 1000), body = String(m.report || '').slice(0, 70000);
+  if (!/^[0-9.]{1,12}$/.test(v) || !body) return new Response('invalide', { status: 400 });
+  const now = new Date();
+  const recent = await env.DB.prepare(`SELECT COUNT(*) AS n FROM reports WHERE at >= ?1`).bind(new Date(now - 3600000).toISOString()).first();
+  if (recent.n >= 30) return new Response('trop de rapports', { status: 429 });
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO reports (at, v, message, report) VALUES (?1, ?2, ?3, ?4)`).bind(now.toISOString(), v, message, body),
+    env.DB.prepare(`DELETE FROM reports WHERE at < ?1`).bind(new Date(now - 30 * 86400000).toISOString()),
+  ]);
   return new Response(null, { status: 204 });
 }
 

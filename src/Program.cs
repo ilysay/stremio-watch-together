@@ -1,41 +1,20 @@
 namespace StremioWT
 {
-    static class Program
+    // Cœur commun à toutes les plateformes : dossier de données, configuration, journal technique.
+    // Le démarrage, les messages d'erreur et le presse-papier sont dans Platform/Program.<plateforme>.cs.
+    static partial class Program
     {
         internal static readonly string DataDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StremioWT");
         static readonly string ConfigFile = Path.Combine(DataDir, "config.json");
         static readonly string LogFile = Path.Combine(DataDir, "log.txt");
         static StreamWriter log;
-        static Mutex singleInstance;
 
         // Version « majeure.mineure » : l'hôte et ses amis doivent avoir la même (vérifié par le relay).
         internal static readonly string ProtocolVersion = Assembly.GetExecutingAssembly().GetName().Version.ToString(2);
         internal static readonly string ScriptVersion = Assembly.GetExecutingAssembly().GetName().Version.ToString();
 
-        internal static readonly JavaScriptSerializer Json = new JavaScriptSerializer { MaxJsonLength = int.MaxValue };
+        internal static readonly JsonCodec Json = new JsonCodec();
         internal static readonly HttpClient Http = new HttpClient { Timeout = Timeout.InfiniteTimeSpan };
-
-        [STAThread]
-        static void Main(string[] args)
-        {
-            ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
-            ServicePointManager.DefaultConnectionLimit = 32;
-            ServicePointManager.Expect100Continue = false;
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
-            L.Init();
-            // Un seul exemplaire à la fois : deux copies ouvriraient deux salons et piloteraient le même Stremio.
-            singleInstance = new Mutex(true, @"Local\StremioWatchTogether", out bool firstInstance);
-            if (!firstInstance)
-            {
-                MessageBox.Show(L.T("StremioWT est déjà ouvert sur ce PC.\nUtilise la fenêtre déjà ouverte, ou ferme-la avant d'en relancer une."),
-                    "Stremio Watch Together", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                return;
-            }
-            OpenLog();
-            Telemetry.Send("launch");
-            Application.Run(new MainForm());
-        }
 
         internal static Dictionary<string, object> Config = LoadConfig();
 
@@ -49,10 +28,25 @@ namespace StremioWT
                 Directory.CreateDirectory(DataDir);
                 if (File.Exists(LogFile)) File.Copy(LogFile, Path.Combine(DataDir, "log-precedent.txt"), true);
                 log = new StreamWriter(new FileStream(LogFile, FileMode.Create, FileAccess.Write, FileShare.ReadWrite), Encoding.UTF8) { AutoFlush = true };
-                Log("StremioWT " + Assembly.GetExecutingAssembly().GetName().Version);
+                Log("StremioWT " + Assembly.GetExecutingAssembly().GetName().Version + " · " + RuntimeInformation.OSDescription);
             }
             catch { }
             Console.SetOut(new UiWriter());
+        }
+
+        // Dernières lignes du journal (pour un rapport de bug) ; le fichier reste ouvert en écriture.
+        internal static string LogTail(int lines)
+        {
+            try
+            {
+                lock (LogFile)
+                using (var r = new StreamReader(new FileStream(LogFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite), Encoding.UTF8))
+                {
+                    var all = r.ReadToEnd().Split('\n');
+                    return string.Join("\n", all.Skip(Math.Max(0, all.Length - lines)));
+                }
+            }
+            catch { return "(journal illisible)"; }
         }
 
         internal static void Log(string line)
@@ -72,30 +66,7 @@ namespace StremioWT
             }
         }
 
-        internal static void Fail(string msg)
-        {
-            Log("arrêt : " + msg);
-            MessageBox.Show(msg, "Stremio Watch Together", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            Environment.Exit(1);
-        }
-
-        internal static void Restart()
-        {
-            Log("relance (changement de langue)");
-            try { singleInstance.ReleaseMutex(); singleInstance.Dispose(); } catch { }
-            Process.Start(new ProcessStartInfo(Application.ExecutablePath) { UseShellExecute = true });
-            Environment.Exit(0);
-        }
-
-        internal static T Sta<T>(Func<T> f)
-        {
-            T result = default;
-            var t = new Thread(() => { try { result = f(); } catch { } });
-            t.SetApartmentState(ApartmentState.STA);
-            t.Start();
-            t.Join();
-            return result;
-        }
+        internal static bool IsWindows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
 
         static Dictionary<string, object> LoadConfig()
         {
@@ -105,6 +76,7 @@ namespace StremioWT
 
         internal static void SaveConfig(Dictionary<string, object> c)
         {
+            if (TestMode.Active) return;
             try { Directory.CreateDirectory(DataDir); File.WriteAllText(ConfigFile, Json.Serialize(c)); Log("config enregistrée"); }
             catch (Exception e) { Log("config non enregistrée : " + e.Message); }
         }

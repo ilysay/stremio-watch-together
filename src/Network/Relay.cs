@@ -44,7 +44,7 @@ namespace StremioWT
         // Sans ça, les programmes lancés ensuite (Stremio, cloudflared) héritent du port d'écoute
         // et le gardent ouvert après la fermeture de StremioWT : la session suivante tombe dessus et reste bloquée.
         [DllImport("kernel32.dll")] static extern bool SetHandleInformation(IntPtr handle, int mask, int flags);
-        static void NoInherit(Socket s) { try { SetHandleInformation(s.Handle, 1 /* HANDLE_FLAG_INHERIT */, 0); } catch { } }
+        static void NoInherit(Socket s) { if (Program.IsWindows) try { SetHandleInformation(s.Handle, 1 /* HANDLE_FLAG_INHERIT */, 0); } catch { } }
 
         // Vérifie que c'est bien ce relay qui répond sur ce port (et pas un reste d'une ancienne session).
         public static async Task<bool> Answers(int port)

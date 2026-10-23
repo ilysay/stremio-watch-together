@@ -5,7 +5,7 @@ namespace StremioWT
     // Jamais de pseudo, de titre, de lien, de message ni de code de salon.
     static class Telemetry
     {
-        const string Url = "https://stremiowt-stats.stremiowt.workers.dev";
+        internal const string Url = "https://stremiowt-stats.stremiowt.workers.dev";
 
         public static bool Enabled
         {
@@ -30,6 +30,9 @@ namespace StremioWT
             lock (errorsSent) if (!errorsSent.Add(code)) return;
             Send("error", detail: code);
         }
+
+        // Un problème déjà identifié (Stremio introuvable, salon injoignable…) ne doit pas compter aussi comme erreur inattendue.
+        public static bool AnyErrorSent { get { lock (errorsSent) return errorsSent.Count > 0; } }
 
         public static Task SessionEnded(TimeSpan length)
         {

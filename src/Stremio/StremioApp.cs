@@ -19,6 +19,7 @@ namespace StremioWT
         // puis à celui utilisé la dernière fois, puis à Stremio 5, la version proposée aujourd'hui par Stremio.
         internal static string FindExe(Dictionary<string, object> config)
         {
+            if (!IsWindows) return FindLinuxStremio(config);
             var candidates = new List<string>();
             foreach (var name in new[] { "stremio-shell-ng", "stremio" })
                 try { var p = Process.GetProcessesByName(name).FirstOrDefault(); if (p != null) candidates.Add(p.MainModule.FileName); } catch { }
@@ -33,6 +34,31 @@ namespace StremioWT
         }
 
         internal static bool IsStremio5(string exe) => Path.GetFileName(exe ?? "").Equals("stremio-shell-ng.exe", StringComparison.OrdinalIgnoreCase);
+
+        // Linux : Stremio 4 installé en paquet (.deb, AUR…) ou en Flatpak (com.stremio.Stremio).
+        const string FlatpakId = "com.stremio.Stremio";
+        const string FlatpakMarker = "flatpak:" + FlatpakId;
+
+        static string FindLinuxStremio(Dictionary<string, object> config)
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var candidates = new List<string>();
+            if (config.TryGetValue("stremioPath", out var sp) && sp is string spath) candidates.Add(spath);
+            candidates.AddRange(new[] { "/usr/bin/stremio", "/usr/local/bin/stremio", "/opt/stremio/stremio", Path.Combine(home, ".local/bin/stremio") });
+            var exe = candidates.FirstOrDefault(File.Exists);
+            if (exe != null) return exe;
+            var flatpak = new[] { "/var/lib/flatpak/app/" + FlatpakId, Path.Combine(home, ".local/share/flatpak/app/" + FlatpakId) };
+            return flatpak.Any(Directory.Exists) ? FlatpakMarker : null;
+        }
+
+        static ProcessStartInfo LinuxLaunch(string exe)
+        {
+            var debug = $"127.0.0.1:{DebugPort}";
+            if (exe == FlatpakMarker) return new ProcessStartInfo("flatpak", $"run --env=QTWEBENGINE_REMOTE_DEBUGGING={debug} {FlatpakId}") { UseShellExecute = false };
+            var psi = new ProcessStartInfo(exe) { UseShellExecute = false, WorkingDirectory = Path.GetDirectoryName(exe) };
+            psi.EnvironmentVariables["QTWEBENGINE_REMOTE_DEBUGGING"] = debug;
+            return psi;
+        }
 
         internal static async Task<string> FindPageWsUrl()
         {
@@ -62,9 +88,13 @@ namespace StremioWT
             // Lancement « normal » (ShellExecute) : Stremio n'hérite d'aucun descripteur de StremioWT.
             // Les variables de débogage passent par notre propre environnement, que Stremio reçoit
             // (QTWEBENGINE_… pour Stremio 4, WEBVIEW2_… pour Stremio 5). Le port n'écoute que sur ce PC.
-            Environment.SetEnvironmentVariable("QTWEBENGINE_REMOTE_DEBUGGING", $"127.0.0.1:{DebugPort}");
-            Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", $"--remote-debugging-port={DebugPort}");
-            Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe) });
+            if (IsWindows)
+            {
+                Environment.SetEnvironmentVariable("QTWEBENGINE_REMOTE_DEBUGGING", $"127.0.0.1:{DebugPort}");
+                Environment.SetEnvironmentVariable("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", $"--remote-debugging-port={DebugPort}");
+                Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(exe) });
+            }
+            else Process.Start(LinuxLaunch(exe));
             for (int i = 0; i < 60; i++)
             {
                 await Task.Delay(500);

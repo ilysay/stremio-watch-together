@@ -10,6 +10,7 @@ Une petite appli, un code d'invitation, sans compte, sans serveur.
 [![Télécharger](https://img.shields.io/github/v/release/ilysay/stremio-watch-together?label=t%C3%A9l%C3%A9charger&style=for-the-badge&color=2f80ff)](https://github.com/ilysay/stremio-watch-together/releases/latest)
 
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0c2048?style=flat-square)
+[![Linux bêta](https://img.shields.io/badge/Linux-b%C3%AAta-f5a623?style=flat-square&logo=linux&logoColor=white)](linux/README.md)
 ![Taille](https://img.shields.io/badge/taille-~450%20Ko-0c2048?style=flat-square)
 ![Langues](https://img.shields.io/badge/langues-10-0c2048?style=flat-square)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-0c2048?style=flat-square)](LICENSE)
@@ -42,6 +43,9 @@ Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord
 - 🪶 **Léger et portable** : un seul `.exe` d'environ 450 Ko, rien à installer ni à configurer.
 
 ## Démarrage rapide
+
+> [!TIP]
+> **🐧 Nouveau : la bêta Linux !** Amis sous Linux et sous Windows peuvent partager le même salon. [Version Linux](linux/README.md) (page en anglais). C'est une bêta, donc **vos retours sont les bienvenus** : [ouvrez une issue](https://github.com/ilysay/stremio-watch-together/issues) pour nous dire comment ça s'est passé.
 
 **Il faut :** Windows 10 ou 11 et l'[application Stremio pour PC](https://www.stremio.com/downloads) officielle : Stremio 5 (la version actuelle) ou Stremio 4.
 
@@ -83,6 +87,7 @@ flowchart LR
 | 🧾 **Sans compte** | Pas d'inscription, pas de connexion, rien de stocké sur vous sur un serveur. |
 | 💬 **Chat** | Texte simple (300 caractères max), 5 messages par 10 s. Les GIF ne viennent que de Giphy et Tenor : un lien ne peut pas servir à récupérer l'IP des spectateurs. |
 | 📊 **Statistiques anonymes** | L'appli envoie un identifiant d'installation aléatoire, la version, la langue, la taille du salon, des codes d'erreur et la durée arrondie des séances, pour compter les utilisateurs et repérer les bugs. Jamais de pseudo, titre, lien, message ni IP. Désactivable dans ⚙ **Paramètres**. Le [code du serveur](telemetry/worker.js) est public. |
+| 🐞 **Rapports de bug** | Seulement si vous cliquez sur **Signaler un bug** (dans ⚙ **Paramètres** ou sous une erreur) puis sur **Envoyer**. Vous voyez d'abord exactement ce qui part : votre message, les versions de l'appli et du système, et le journal de l'appli (il peut contenir votre pseudo et les titres regardés). Gardé 30 jours, jamais partagé. |
 | 🔍 **Open source** | Tout le code est ici, sous licence MIT. L'exe de chaque version est compilé à partir de ce code. |
 
 **« Windows a protégé votre ordinateur » ?** L'exe n'est pas signé (une signature coûte quelques centaines d'euros par an), donc SmartScreen prévient pour tout nouveau téléchargement. Cliquez sur **Informations complémentaires → Exécuter quand même**. Vous pouvez aussi le compiler vous-même (voir plus bas) ou comparer son empreinte SHA-256 avec celle indiquée dans la version :
@@ -94,6 +99,15 @@ Get-FileHash .\StremioWT.exe -Algorithm SHA256
 **Antivirus :** [VirusTotal](https://www.virustotal.com/gui/file/a41f938558bddb85695cba07b26a50bfd9ce48799bdd358ee6dffd2b535971a0) indique 1/71, une estimation de l'IA de Malwarebytes (`MachineLearning/Anomalous`), fréquente pour les nouveaux outils non signés. Elle est en cours de signalement à Malwarebytes comme faux positif. Les 70 autres antivirus, dont Microsoft Defender, ne détectent rien.
 
 ## FAQ
+
+<details>
+<summary><b>« Stremio introuvable » ?</b></summary>
+
+StremioWT pilote l'**application Stremio pour PC**, il doit donc d'abord la trouver. Il cherche un Stremio déjà ouvert, puis dans les dossiers d'installation habituels (`AppData\Local\Programs\Stremio`, `Program Files`…). Ce message apparaît quand :
+
+- **Vous utilisez Stremio seulement dans le navigateur** (web.stremio.com) ou sur téléphone/TV : installez l'[application Stremio pour Windows](https://www.stremio.com/downloads), gratuite. La version web ne peut pas être synchronisée.
+- **Stremio est installé à un endroit inhabituel** (autre disque, version portable…) : **ouvrez d'abord Stremio, puis StremioWT**. Il détecte le Stremio ouvert où qu'il soit et s'en souvient pour la suite.
+</details>
 
 <details>
 <summary><b>Tout le monde doit avoir Real-Debrid ?</b></summary>
@@ -126,9 +140,9 @@ Oui : cochez « amis sur le même wifi seulement » avant d'héberger. Aucun tun
 </details>
 
 <details>
-<summary><b>Sur téléphone, Mac ou Linux ?</b></summary>
+<summary><b>Sur Linux, Mac ou téléphone ?</b></summary>
 
-Pas pour l'instant : l'appli s'appuie sur la version Windows de Stremio (4 ou 5). Des amis sur Stremio 4 et Stremio 5 peuvent partager le même salon.
+**Linux : oui, en bêta !** Voir la [page Linux](linux/README.md). Amis sous Linux et sous Windows peuvent être dans le même salon. Mac et téléphone : pas pour l'instant. Des amis sur Stremio 4 et Stremio 5 peuvent partager le même salon.
 </details>
 
 ## Compiler soi-même
