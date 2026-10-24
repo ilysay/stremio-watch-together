@@ -26,7 +26,19 @@ namespace StremioWT
             lang.Click += (s, e) => menu.Show(lang, new Point(0, lang.Height));
             Controls.Add(lang);
             var stats = new ToggleSwitch(L.T("Statistiques anonymes")) { Location = new Point(20, 104), Size = new Size(360, 26), ForeColor = Theme.Text, BackColor = Theme.Background, Checked = Telemetry.Enabled };
-            stats.CheckedChanged += (s, e) => Telemetry.Enabled = stats.Checked;
+            // Avant de couper : on montre ce qui est envoyé et à quoi ça sert ; « Garder » remet l'interrupteur.
+            bool reverting = false;
+            stats.CheckedChanged += (s, e) =>
+            {
+                if (reverting) return;
+                if (!stats.Checked)
+                    using (var ask = new StatsForm())
+                    {
+                        ask.ShowDialog(this);
+                        if (ask.Keep) { reverting = true; stats.Checked = true; reverting = false; return; }
+                    }
+                if (stats.Checked) Telemetry.Enabled = true; else Telemetry.TurnOff();
+            };
             Controls.Add(stats);
             Controls.Add(Dialogs.Text(L.T("Compte combien de personnes utilisent StremioWT.\nAucun pseudo, titre, lien ni adresse IP n'est enregistré."), Theme.Small, Theme.Muted, 20, 138, 360, 56));
             var report = new FlatButton("🐞  " + L.T("Signaler un bug"), primary: false) { Location = new Point(20, 204), Size = new Size(360, 38) };

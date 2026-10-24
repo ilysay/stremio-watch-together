@@ -6,7 +6,7 @@
 //   POST /report { v, message, report }                   ← rapport de bug, envoyé seulement si l'utilisateur clique « Envoyer »
 //
 // Ce qui est enregistré : un identifiant d'installation ALÉATOIRE (sans lien avec la personne),
-// la version, la langue de l'appli, le type d'événement (launch / host / join / error / session),
+// la version, la langue de l'appli, le type d'événement (launch / host / join / error / session / optout),
 // la taille du salon, le type de problème rencontré, la durée arrondie d'une séance,
 // et le pays (déduit par Cloudflare, l'adresse IP elle-même n'est jamais stockée).
 // Ce qui n'est JAMAIS enregistré : adresse IP, pseudo, titres, liens, messages du chat, codes de salon.
@@ -15,11 +15,11 @@
 //
 // Liaisons à configurer dans Cloudflare : base D1 nommée « DB », secrets « STATS_KEY » et « GIPHY_KEY ».
 
-const EVENTS = ['launch', 'host', 'join', 'error', 'session'];
+const EVENTS = ['launch', 'host', 'join', 'error', 'session', 'optout'];
 // Valeurs acceptées pour chaque détail : tout le reste est refusé (rien de libre ne peut être envoyé).
 const ERRORS = ['stremio-missing', 'stremio-noreply', 'tunnel', 'room-unreachable', 'version', 'room-full', 'crash'];
 const DURATIONS = ['0-5m', '5-30m', '30-60m', '1-2h', '2-3h', '3h+'];
-const LANGS = ['fr', 'en', 'zh', 'hi', 'es', 'ar', 'bn', 'pt', 'ru', 'id'];
+const LANGS = ['fr', 'en', 'zh', 'hi', 'es', 'ar', 'bn', 'pt', 'ru', 'id', 'de', 'it', 'tr', 'pl', 'cs'];
 
 const ERROR_NAMES = {
   'stremio-missing': 'Stremio introuvable sur le PC',

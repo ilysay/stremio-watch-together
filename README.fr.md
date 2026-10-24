@@ -11,8 +11,9 @@ Une petite appli, un code d'invitation, sans compte, sans serveur.
 
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0c2048?style=flat-square)
 [![Linux bêta](https://img.shields.io/badge/Linux-b%C3%AAta-f5a623?style=flat-square&logo=linux&logoColor=white)](linux/README.md)
+[![Mac version test](https://img.shields.io/badge/Mac-version%20test-e5484d?style=flat-square&logo=apple&logoColor=white)](mac/README.md)
 ![Taille](https://img.shields.io/badge/taille-~450%20Ko-0c2048?style=flat-square)
-![Langues](https://img.shields.io/badge/langues-10-0c2048?style=flat-square)
+![Langues](https://img.shields.io/badge/langues-15-0c2048?style=flat-square)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-0c2048?style=flat-square)](LICENSE)
 
 [English](README.md)
@@ -27,6 +28,7 @@ Une petite appli, un code d'invitation, sans compte, sans serveur.
 |---|---|
 | 🪟 **Windows** | **[Télécharger StremioWT.exe](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT.exe)** puis double-cliquez dessus. Il faut l'[application Stremio pour Windows](https://www.stremio.com/downloads). |
 | 🐧 **Linux** (bêta) | **[Télécharger StremioWT-linux-x64](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT-linux-x64)**, puis suivez le **[guide Linux](linux/README.md)** (un script d'installation, page en anglais). |
+| 🍎 **Mac** (version test, peut buguer) | **[Télécharger StremioWT-mac.zip](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT-mac.zip)** (Apple Silicon et Intel), puis suivez le **[guide Mac](mac/README.md)** (page en anglais). Il faut Chrome, Edge ou Brave. |
 
 ## En vidéo
 
@@ -40,7 +42,7 @@ Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord
 ## Fonctionnalités
 
 - 🎬 **Vraie synchro** : lecture, pause, déplacement et épisode suivant suivent le salon, avec recalage automatique.
-- 🔗 **Rejoindre en un clic** : l'hôte envoie un lien d'invitation. Les amis qui n'ont pas l'appli arrivent sur une page qui leur donne le bon téléchargement (Windows ou Linux) et les fait entrer dès qu'ils l'ouvrent ; ceux qui l'ont entrent directement. Le code seul (`WT-…`) marche toujours.
+- 🔗 **Rejoindre en un clic** : l'hôte envoie un lien d'invitation. Les amis qui n'ont pas l'appli arrivent sur une page qui leur donne le bon téléchargement (Windows, Linux ou Mac) et les fait entrer dès qu'ils l'ouvrent ; ceux qui l'ont entrent directement. Le code seul (`WT-…`) marche toujours.
 - 🔄 **Mises à jour en un clic** : quand une version sort, l'appli la télécharge depuis GitHub, vérifie son empreinte SHA-256 et redémarre.
 - ⏳ **Attend ceux qui chargent** : si le flux de quelqu'un charge, tout le monde se met en pause et reprend ensemble. Un garde-fou de 30 secondes et un clic « ne pas l'attendre » évitent de bloquer la soirée.
 - 👑 **Contrôle de l'hôte** : un interrupteur, et seul l'hôte peut mettre pause, avancer ou changer d'épisode.
@@ -48,13 +50,15 @@ Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord
 - 💬 **Chat avec émotes et GIF**, dans la fenêtre et par-dessus la vidéo (touche **T** dans Stremio).
 - 🛡️ **Les sources privées restent privées** : les liens Real-Debrid ou d'autres débrideurs ne sont jamais envoyés au salon. Les amis reçoivent l'épisode et choisissent leur propre source.
 - 📔 **Mon journal** : tout ce que vous regardez (films, séries, animes) est noté avec affiches et notes. Les films s'exportent vers Letterboxd en un clic.
-- 🌍 **10 langues** : English, Français, Español, Português, 中文, हिन्दी, العربية, বাংলা, Русский, Bahasa Indonesia.
+- 🌍 **15 langues**, choisies automatiquement selon la langue de votre ordinateur : English, Français, Español, Português, Deutsch, Italiano, Türkçe, Polski, Čeština, Русский, 中文, हिन्दी, العربية, বাংলা, Bahasa Indonesia.
 - 🪶 **Léger et portable** : un seul `.exe` d'environ 450 Ko, rien à installer ni à configurer.
 
 ## Démarrage rapide
 
 > [!TIP]
 > **🐧 Sous Linux ?** Suivez plutôt le **[guide Linux](linux/README.md)** (page en anglais). Amis sous Linux et sous Windows peuvent partager le même salon. C'est une bêta, donc **vos retours sont les bienvenus** : [ouvrez une issue](https://github.com/ilysay/stremio-watch-together/issues) pour nous dire comment ça s'est passé.
+>
+> **🍎 Sur Mac ?** Une **version test** existe : voir le **[guide Mac](mac/README.md)** (page en anglais). Elle n'est pas encore stable et peut avoir des bugs, donc chaque signalement compte.
 
 **Il faut (Windows) :** Windows 10 ou 11 et l'[application Stremio pour PC](https://www.stremio.com/downloads) officielle : Stremio 5 (la version actuelle) ou Stremio 4.
 
@@ -151,7 +155,7 @@ Oui : cochez « amis sur le même wifi seulement » avant d'héberger. Aucun tun
 <details>
 <summary><b>Sur Linux, Mac ou téléphone ?</b></summary>
 
-**Linux : oui, en bêta !** Voir la [page Linux](linux/README.md). Amis sous Linux et sous Windows peuvent être dans le même salon. Mac et téléphone : pas pour l'instant. Des amis sur Stremio 4 et Stremio 5 peuvent partager le même salon.
+**Linux : oui, en bêta !** Voir la [page Linux](linux/README.md). **Mac : une version test est sortie**, pas encore stable : voir la [page Mac](mac/README.md). Amis sous Windows, Linux et Mac peuvent être dans le même salon. Téléphone : pas pour l'instant. Des amis sur Stremio 4 et Stremio 5 peuvent partager le même salon.
 </details>
 
 ## Compiler soi-même

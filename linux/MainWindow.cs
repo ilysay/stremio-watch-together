@@ -128,7 +128,12 @@ namespace StremioWT
                 OpenUrl(Updates.DownloadUrl);
             };
             Opened += (s, e) => OpenDiaryIfAsked();
-            Opened += (s, e) => { var updated = Updates.AfterUpdate(); if (updated != null && string.IsNullOrEmpty(startStatus.Text)) startStatus.Text = L.F("Mis à jour vers la version {0} ✓", updated); };
+            Opened += async (s, e) =>
+            {
+                var updated = Updates.AfterUpdate();
+                if (updated != null && string.IsNullOrEmpty(startStatus.Text)) startStatus.Text = L.F("Mis à jour vers la version {0} ✓", updated);
+                if (Updates.WhatsNewPending(updated)) await new WhatsNewWindow(Updates.CurrentVersion).ShowDialog(this);
+            };
             Opened += async (s, e) =>
             {
                 var version = await Updates.NewerVersion();

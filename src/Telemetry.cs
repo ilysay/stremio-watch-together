@@ -13,6 +13,13 @@ namespace StremioWT
             set { Program.Config["telemetry"] = value; Program.SaveConfig(Program.Config); Program.Log("statistiques anonymes : " + (value ? "activées" : "désactivées")); }
         }
 
+        // Coupure volontaire : un dernier signal « optout » (comme annoncé dans la fenêtre), puis plus rien.
+        public static void TurnOff()
+        {
+            Send("optout");
+            Enabled = false;
+        }
+
         static string InstallId()
         {
             if (Program.Config.TryGetValue("installId", out var v) && v is string id && id.Length == 32) return id;

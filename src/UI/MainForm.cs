@@ -64,7 +64,13 @@ namespace StremioWT
                 Environment.Exit(0);
             };
             Shown += (s, e) => AutoJoinFromClipboard();
-            Shown += (s, e) => { var updated = Updates.AfterUpdate(); if (updated != null && string.IsNullOrEmpty(startStatus.Text)) startStatus.Text = L.F("Mis à jour vers la version {0} ✓", updated); };
+            Shown += (s, e) =>
+            {
+                var updated = Updates.AfterUpdate();
+                if (updated != null && string.IsNullOrEmpty(startStatus.Text)) startStatus.Text = L.F("Mis à jour vers la version {0} ✓", updated);
+                // Après la fenêtre principale, pour ne pas bloquer une invitation reçue au lancement.
+                if (Updates.WhatsNewPending(updated)) BeginInvoke(new Action(() => { using (var news = new WhatsNewForm(Updates.CurrentVersion)) news.ShowDialog(this); }));
+            };
         }
 
         protected override void OnHandleCreated(EventArgs e)

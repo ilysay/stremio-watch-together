@@ -47,6 +47,9 @@ namespace StremioWT
 
         public static async Task<bool> Install(Action<int> progress)
         {
+            // Mac : l'appli est un paquet StremioWT.app dans un zip, pas un fichier unique à remplacer.
+            // On ouvre la page de téléchargement à la place (même chemin qu'un échec).
+            if (IsMac) { Log("mise à jour : sur Mac, téléchargement manuel"); return false; }
             var asset = (latest?["assets"] as System.Collections.ArrayList)?.Cast<Dictionary<string, object>>()
                 .FirstOrDefault(a => a["name"] as string == AssetName);
             var url = asset?["browser_download_url"] as string;
@@ -112,6 +115,21 @@ namespace StremioWT
             SaveConfig(Config);
             return version;
         }
+
+        // « Quoi de neuf » à montrer au démarrage : une seule fois par version, et seulement à ceux qui avaient déjà
+        // l'appli (mise à jour dans l'appli, ou nouvel exe téléchargé à la main) : pas à une toute première installation.
+        public static bool WhatsNewPending(string updated)
+        {
+            var now = Current.ToString(3);
+            var seen = Config.TryGetValue("seenVersion", out var s) ? s as string : null;
+            if (seen == now) return false;
+            bool hadApp = seen != null || updated != null || Config.ContainsKey("name");
+            Config["seenVersion"] = now;
+            SaveConfig(Config);
+            return hadApp;
+        }
+
+        internal static string CurrentVersion => Current.ToString(3);
 
         internal static bool IsNewer(string tag, Version current) =>
             Version.TryParse((tag ?? "").TrimStart('v', 'V'), out var latest) && latest > new Version(current.Major, current.Minor, Math.Max(0, current.Build));

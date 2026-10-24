@@ -11,8 +11,9 @@ One tiny app, one invite code, no account, no server.
 
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0c2048?style=flat-square)
 [![Linux beta](https://img.shields.io/badge/Linux-beta-f5a623?style=flat-square&logo=linux&logoColor=white)](linux/README.md)
+[![Mac test version](https://img.shields.io/badge/Mac-test%20version-e5484d?style=flat-square&logo=apple&logoColor=white)](mac/README.md)
 ![Size](https://img.shields.io/badge/size-~450%20KB-0c2048?style=flat-square)
-![Languages](https://img.shields.io/badge/languages-10-0c2048?style=flat-square)
+![Languages](https://img.shields.io/badge/languages-15-0c2048?style=flat-square)
 [![License: MIT](https://img.shields.io/badge/license-MIT-0c2048?style=flat-square)](LICENSE)
 
 [Français](README.fr.md)
@@ -27,6 +28,7 @@ One tiny app, one invite code, no account, no server.
 |---|---|
 | 🪟 **Windows** | **[Download StremioWT.exe](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT.exe)** and double-click it. Needs the [Stremio app for Windows](https://www.stremio.com/downloads). |
 | 🐧 **Linux** (beta) | **[Download StremioWT-linux-x64](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT-linux-x64)**, then follow the **[Linux guide](linux/README.md)** (one install script). |
+| 🍎 **Mac** (test version, may be buggy) | **[Download StremioWT-mac.zip](https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT-mac.zip)** (Apple Silicon and Intel), then follow the **[Mac guide](mac/README.md)**. Needs Chrome, Edge or Brave. |
 
 ## See it in action
 
@@ -40,7 +42,7 @@ Stremio has no watch party. Screen sharing on Discord kills the quality and the 
 ## Features
 
 - 🎬 **Real sync**: play, pause, seek and next episode follow the room, with automatic catch-up.
-- 🔗 **Join in one click**: the host sends an invite link. Friends without the app land on a page that gets them the right download (Windows or Linux) and joins the room as soon as they open it; friends who have it go straight in. The bare code (`WT-…`) still works too.
+- 🔗 **Join in one click**: the host sends an invite link. Friends without the app land on a page that gets them the right download (Windows, Linux or Mac) and joins the room as soon as they open it; friends who have it go straight in. The bare code (`WT-…`) still works too.
 - 🔄 **Updates in one click**: when a new version is out, the app downloads it from GitHub, checks its SHA-256 fingerprint and restarts.
 - ⏳ **Waits for slow loaders**: when someone's stream is buffering, everyone pauses and resumes together. A 30-second safeguard and a "don't wait for them" click keep the night going.
 - 👑 **Host controls**: one switch and only the host can pause, seek or change episode.
@@ -48,13 +50,15 @@ Stremio has no watch party. Screen sharing on Discord kills the quality and the 
 - 💬 **Chat with emotes and GIFs**, in the window and right over the video (press **T** in Stremio).
 - 🛡️ **Private sources stay private**: Real-Debrid and other debrid links are never sent to the room. Friends get the episode and pick their own source.
 - 📔 **My diary**: everything you watch (movies, series, anime) is logged with posters and ratings. Movies export to Letterboxd in one click.
-- 🌍 **10 languages**: English, Français, Español, Português, 中文, हिन्दी, العربية, বাংলা, Русский, Bahasa Indonesia.
+- 🌍 **15 languages**, picked automatically from your computer's language: English, Français, Español, Português, Deutsch, Italiano, Türkçe, Polski, Čeština, Русский, 中文, हिन्दी, العربية, বাংলা, Bahasa Indonesia.
 - 🪶 **Tiny and portable**: a single ~450 KB `.exe`, nothing to install, nothing to configure.
 
 ## Quick start
 
 > [!TIP]
 > **🐧 On Linux?** Follow the **[Linux guide](linux/README.md)** instead. Linux and Windows friends can share the same room. It's a beta, so **feedback is very welcome**: [open an issue](https://github.com/ilysay/stremio-watch-together/issues) and tell us how it went.
+>
+> **🍎 On a Mac?** There's a **test version**: see the **[Mac guide](mac/README.md)**. It's not stable yet and may have bugs, so bug reports are gold.
 
 **You need (Windows):** Windows 10 or 11 and the official [Stremio desktop app](https://www.stremio.com/downloads): Stremio 5 (the current version) or Stremio 4.
 
@@ -151,7 +155,7 @@ Yes, turn on "friends on the same Wi-Fi only" before hosting. No tunnel is opene
 <details>
 <summary><b>Does it work on Linux, Mac or phone?</b></summary>
 
-**Linux: yes, in beta!** See the [Linux page](linux/README.md). Linux and Windows friends can be in the same room. Mac and phones: not for now. Friends on Stremio 4 and Stremio 5 can share the same room.
+**Linux: yes, in beta!** See the [Linux page](linux/README.md). **Mac: a test version is out**, not stable yet: see the [Mac page](mac/README.md). Windows, Linux and Mac friends can be in the same room. Phones: not for now. Friends on Stremio 4 and Stremio 5 can share the same room.
 </details>
 
 <details>
@@ -176,7 +180,7 @@ cd stremio-watch-together
 | `src/Stremio` | Stremio launcher, minimal DevTools client, script injected into Stremio |
 | `src/Session` | A watch session: sync, waiting for loaders, chat, ratings |
 | `src/UI`, `src/Chat`, `src/Journal` | Windows Forms interface, chat, diary and Letterboxd export |
-| `src/Localization` | The 10 languages |
+| `src/Localization` | The 15 languages |
 | `tests` | Unit and relay tests (`dotnet test`) |
 | `telemetry` | Cloudflare Worker for anonymous stats and GIF search |
 

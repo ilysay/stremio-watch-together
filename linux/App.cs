@@ -27,6 +27,7 @@ namespace StremioWT
 
         public override void Initialize()
         {
+            Name = "StremioWT"; // nom affiché dans la barre de menus du Mac (sinon « Avalonia Application »)
             RequestedThemeVariant = ThemeVariant.Dark;
             Resources["SystemAccentColor"] = Palette.Accent;
             Styles.Add(new FluentTheme());

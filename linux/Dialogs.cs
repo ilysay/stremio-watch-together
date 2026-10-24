@@ -130,7 +130,18 @@ namespace StremioWT
                 Program.Restart();
             };
             var stats = new ToggleSwitch { Content = L.T("Statistiques anonymes"), IsChecked = Telemetry.Enabled };
-            stats.IsCheckedChanged += (s, e) => Telemetry.Enabled = stats.IsChecked == true;
+            // Avant de couper : on montre ce qui est envoyé et à quoi ça sert ; « Garder » remet l'interrupteur.
+            bool reverting = false;
+            stats.IsCheckedChanged += async (s, e) =>
+            {
+                if (reverting) return;
+                if (stats.IsChecked != true && !await new StatsWindow().ShowDialog<bool>(this))
+                {
+                    reverting = true; stats.IsChecked = true; reverting = false;
+                    return;
+                }
+                if (stats.IsChecked == true) Telemetry.Enabled = true; else Telemetry.TurnOff();
+            };
             var panel = new StackPanel { Margin = new Thickness(20), Spacing = 12 };
             panel.Children.Add(new TextBlock { Text = L.T("Langue"), FontWeight = FontWeight.SemiBold, Foreground = Palette.Brush(Palette.Text) });
             panel.Children.Add(lang);
@@ -139,6 +150,71 @@ namespace StremioWT
             var report = new Button { Content = "🐞  " + L.T("Signaler un bug"), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Padding = new Thickness(12, 9) };
             report.Click += async (s, e) => await new ReportWindow().ShowDialog(this);
             panel.Children.Add(report);
+            Content = panel;
+        }
+    }
+
+    // Avant de couper les statistiques anonymes : ce qui est envoyé, ce qui ne l'est jamais, et à quoi ça sert.
+    // Renvoie true seulement pour « Désactiver » : fermer la fenêtre garde les statistiques.
+    class StatsWindow : Window
+    {
+        public StatsWindow()
+        {
+            Title = L.T("Statistiques anonymes");
+            Width = 460; SizeToContent = SizeToContent.Height; CanResize = false;
+            Background = Palette.Brush(Palette.Background);
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            var keep = new Button { Content = L.T("Garder les statistiques"), Classes = { "accent" }, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Padding = new Thickness(12, 11), FontWeight = FontWeight.SemiBold };
+            var off = new Button { Content = L.T("Désactiver"), HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Padding = new Thickness(12, 8) };
+            keep.Click += (s, e) => Close(false);
+            off.Click += (s, e) => Close(true);
+            var panel = new StackPanel { Margin = new Thickness(24, 20), Spacing = 12 };
+            panel.Children.Add(new TextBlock { Text = L.T("Garder les statistiques anonymes ?"), FontSize = 18, FontWeight = FontWeight.SemiBold, Foreground = Palette.Brush(Palette.Text) });
+            panel.Children.Add(new TextBlock { Text = L.T("Elles m'aident à voir ce qui marche, ce qui plante, et à maintenir StremioWT. Rien de privé n'en sort."), TextWrapping = TextWrapping.Wrap, Foreground = Palette.Brush(Palette.Muted) });
+            panel.Children.Add(Section(L.T("Ce qui est envoyé"), Palette.Ok, L.T("• un identifiant d'installation tiré au hasard (pas lié à toi)\n• la version de l'appli, la langue et le pays\n• appli ouverte, salon créé ou rejoint, taille du salon\n• la durée arrondie des séances et les codes d'erreur")));
+            panel.Children.Add(Section(L.T("Jamais envoyé"), Palette.Bad, L.T("• ton pseudo et ton adresse IP\n• ce que tu regardes, les liens, le chat, les codes de salon")));
+            panel.Children.Add(new TextBlock { Text = L.T("Si tu désactives, un dernier signal anonyme « statistiques désactivées » est envoyé, puis plus rien. Le code du serveur est public."), FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = Palette.Brush(Palette.Muted) });
+            panel.Children.Add(keep);
+            panel.Children.Add(off);
+            Content = panel;
+        }
+
+        static Border Section(string title, Color mark, string body)
+        {
+            var inner = new StackPanel { Spacing = 6 };
+            inner.Children.Add(new TextBlock { Text = title, FontWeight = FontWeight.SemiBold, Foreground = Palette.Brush(mark) });
+            inner.Children.Add(new TextBlock { Text = body, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = Palette.Brush(Palette.Text) });
+            return new Border { Background = Palette.Brush(Palette.Card), BorderBrush = Palette.Brush(Palette.Border), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(14, 10), Child = inner };
+        }
+    }
+
+    // Après une mise à jour : les nouveautés de cette version, une seule fois (liste commune avec Windows, dans WhatsNew.cs).
+    class WhatsNewWindow : Window
+    {
+        public WhatsNewWindow(string version)
+        {
+            Title = "Stremio Watch Together";
+            Width = 460; SizeToContent = SizeToContent.Height; CanResize = false;
+            Background = Palette.Brush(Palette.Background);
+            WindowStartupLocation = WindowStartupLocation.CenterOwner;
+            var panel = new StackPanel { Margin = new Thickness(24, 20), Spacing = 10 };
+            panel.Children.Add(new TextBlock { Text = L.T("Nouveautés"), FontSize = 24, FontWeight = FontWeight.SemiBold, Foreground = Palette.Brush(Palette.Text) });
+            panel.Children.Add(new TextBlock { Text = L.F("StremioWT {0} est installé ✓", version), Foreground = Palette.Brush(Palette.Ok), Margin = new Thickness(0, 0, 0, 6) });
+            foreach (var item in WhatsNew.Items)
+            {
+                var text = new StackPanel { Spacing = 3 };
+                text.Children.Add(new TextBlock { Text = item.Title, FontWeight = FontWeight.SemiBold, Foreground = Palette.Brush(Palette.Text) });
+                text.Children.Add(new TextBlock { Text = item.Body, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = Palette.Brush(Palette.Muted) });
+                var row = new DockPanel();
+                var icon = new TextBlock { Text = item.Icon, FontSize = 22, Width = 40, VerticalAlignment = VerticalAlignment.Center };
+                DockPanel.SetDock(icon, Dock.Left);
+                row.Children.Add(icon);
+                row.Children.Add(text);
+                panel.Children.Add(new Border { Background = Palette.Brush(Palette.Card), BorderBrush = Palette.Brush(Palette.Border), BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12, 10), Child = row });
+            }
+            var ok = new Button { Content = L.T("C'est parti"), Classes = { "accent" }, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Center, Padding = new Thickness(12, 11), Margin = new Thickness(0, 8, 0, 0), FontWeight = FontWeight.SemiBold };
+            ok.Click += (s, e) => Close();
+            panel.Children.Add(ok);
             Content = panel;
         }
     }
