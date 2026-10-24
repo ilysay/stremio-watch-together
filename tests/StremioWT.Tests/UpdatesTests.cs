@@ -19,8 +19,18 @@ namespace StremioWT.Tests
         {
             var code = Invite.Make("https://abc.trycloudflare.com", "7F3A2C");
             var message = Rooms.InviteMessage(code);
-            Assert.Contains(Updates.DownloadUrl, message);
+            Assert.Contains(Invite.Link(code), message);
             Assert.Equal(("https://abc.trycloudflare.com", "7F3A2C"), Invite.Parse(message));
+        }
+
+        [Fact]
+        public void InviteLinkCarriesTheCodeAfterTheHash()
+        {
+            var code = Invite.Make("https://abc.trycloudflare.com", "7F3A2C");
+            var link = Invite.Link(code);
+            Assert.StartsWith(Invite.JoinPage + "#WT-", link);
+            Assert.Equal(("https://abc.trycloudflare.com", "7F3A2C"), Invite.Parse(link));
+            Assert.Equal(("https://abc.trycloudflare.com", "7F3A2C"), Invite.Parse("stremiowt://join/" + code));
         }
     }
 }

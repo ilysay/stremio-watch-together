@@ -26,6 +26,7 @@ namespace StremioWT
             }
             OpenLog();
             if (TestMode.TryRun(args)) return;
+            LaunchInvite = InviteFromArgs(args);
             _ = Telemetry.Send("launch");
             AppBuilder.Configure<App>().UsePlatformDetect().WithInterFont().LogToTrace().StartWithClassicDesktopLifetime(args);
         }

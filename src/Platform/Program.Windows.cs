@@ -14,8 +14,17 @@ namespace StremioWT
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             L.Init();
+            LaunchInvite = InviteFromArgs(args);
             // Un seul exemplaire à la fois : deux copies ouvriraient deux salons et piloteraient le même Stremio.
             singleInstance = new Mutex(true, @"Local\StremioWatchTogether", out bool firstInstance);
+            if (!firstInstance && LaunchInvite != null)
+            {
+                // Lien cliqué alors que l'appli tourne déjà : l'invitation part dans le presse-papier.
+                SetClipboardText(LaunchInvite);
+                MessageBox.Show(L.T("StremioWT est déjà ouvert : l'invitation a été copiée. Colle-la dans « Rejoindre un salon »."),
+                    "Stremio Watch Together", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
             if (!firstInstance)
             {
                 MessageBox.Show(L.T("StremioWT est déjà ouvert sur ce PC.\nUtilise la fenêtre déjà ouverte, ou ferme-la avant d'en relancer une."),
@@ -24,8 +33,24 @@ namespace StremioWT
             }
             OpenLog();
             if (TestMode.TryRun(args)) return;
+            RegisterLinkHandler();
             Telemetry.Send("launch");
             Application.Run(new MainForm());
+        }
+
+        // Les liens « stremiowt:// » de la page d'invitation ouvrent cette appli (pour l'utilisateur, sans droits admin).
+        static void RegisterLinkHandler()
+        {
+            try
+            {
+                using (var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(@"Software\Classes\stremiowt"))
+                {
+                    key.SetValue("", "URL:Stremio Watch Together");
+                    key.SetValue("URL Protocol", "");
+                    using (var cmd = key.CreateSubKey(@"shell\open\command")) cmd.SetValue("", $"\"{Application.ExecutablePath}\" \"%1\"");
+                }
+            }
+            catch (Exception e) { Log("liens stremiowt:// : " + e.Message); }
         }
 
         internal static void Fail(string msg)
@@ -38,7 +63,7 @@ namespace StremioWT
 
         internal static void Restart()
         {
-            Log("relance (changement de langue)");
+            Log("relance");
             try { singleInstance.ReleaseMutex(); singleInstance.Dispose(); } catch { }
             Process.Start(new ProcessStartInfo(Application.ExecutablePath) { UseShellExecute = true });
             Environment.Exit(0);

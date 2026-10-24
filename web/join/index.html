@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stremio Watch Together · You're invited</title>
+<meta name="description" content="You're invited to watch Stremio together, in sync.">
+<meta property="og:title" content="🍿 You're invited to a Stremio movie night">
+<meta property="og:description" content="Watch together, perfectly in sync. One click to join.">
+<meta property="og:image" content="https://raw.githubusercontent.com/ilysay/stremio-watch-together/main/docs/logo.png">
+<style>
+  :root { --bg: #06132d; --card: #0c2048; --border: #1e3e82; --accent: #2f80ff; --accent2: #5498ff; --text: #e8f0ff; --muted: #8ca0c8; --ok: #3ddc84; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; background: radial-gradient(1200px 600px at 50% -10%, #12306a 0%, var(--bg) 60%); color: var(--text);
+         font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; padding: 32px 16px; }
+  main { width: 100%; max-width: 520px; }
+  header { text-align: center; margin-bottom: 24px; }
+  header img { width: 88px; height: 88px; }
+  h1 { font-size: 26px; margin: 12px 0 6px; }
+  .sub { color: var(--muted); margin: 0; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 22px; margin-bottom: 14px; }
+  .btn { display: block; width: 100%; text-align: center; text-decoration: none; border: 0; cursor: pointer; border-radius: 12px; padding: 14px 18px;
+         font: 600 17px/1.2 inherit; font-family: inherit; color: #fff; background: var(--accent); transition: background .15s; }
+  .btn:hover { background: var(--accent2); }
+  .btn.secondary { background: #1a3266; font-size: 15px; }
+  .btn.secondary:hover { background: #24407a; }
+  .btn + .btn { margin-top: 10px; }
+  ol { margin: 14px 0 0; padding-left: 22px; color: var(--muted); }
+  ol li { margin: 6px 0; }
+  ol b { color: var(--text); }
+  code { background: #081838; border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; font-size: 14px; color: var(--text); }
+  .done { color: var(--ok); font-weight: 600; margin-top: 12px; display: none; }
+  .label { font-size: 13px; color: var(--muted); margin: 0 0 8px; }
+  .code { display: flex; gap: 8px; }
+  .code input { flex: 1; min-width: 0; background: #081838; border: 1px solid var(--border); border-radius: 10px; color: var(--text); padding: 10px 12px; font: 13px ui-monospace, Consolas, monospace; }
+  .code button { background: #1a3266; color: var(--text); border: 0; border-radius: 10px; padding: 0 16px; font: 600 14px inherit; font-family: inherit; cursor: pointer; }
+  .others { text-align: center; color: var(--muted); font-size: 14px; margin-top: 18px; }
+  .others a { color: var(--accent2); }
+  .note { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="https://raw.githubusercontent.com/ilysay/stremio-watch-together/main/docs/logo.png" alt="">
+    <h1 id="title">🍿 You're invited to watch together</h1>
+    <p class="sub">Stremio, perfectly in sync with your friends. Everyone streams in full quality on their own computer.</p>
+  </header>
+
+  <!-- Pas encore l'appli : téléchargement adapté au système détecté. -->
+  <section class="card" id="windows" hidden>
+    <a class="btn" data-copy href="https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT.exe">Download StremioWT for Windows</a>
+    <ol>
+      <li><b>Open StremioWT.exe</b> (nothing to install). If Windows warns, click <b>More info → Run anyway</b>.</li>
+      <li><b>It joins the room by itself</b>: the invite is already copied.</li>
+    </ol>
+    <p class="note">Works best with the <a href="https://www.stremio.com/downloads" style="color:var(--accent2)">Stremio app for Windows</a>. Without it, StremioWT opens Stremio Web in your browser.</p>
+    <p class="done">✓ Invite copied: just open the app once it's downloaded.</p>
+  </section>
+
+  <section class="card" id="linux" hidden>
+    <a class="btn" data-copy href="https://github.com/ilysay/stremio-watch-together/releases/latest/download/install.sh">1. Download the installer</a>
+    <a class="btn secondary" data-copy href="https://github.com/ilysay/stremio-watch-together/releases/latest/download/StremioWT-linux-x64">2. Download StremioWT (Linux)</a>
+    <ol>
+      <li>Put both files in the same folder, open a terminal there and run <code>bash install.sh</code>.</li>
+      <li>Open <b>Stremio Watch Together</b> from your applications menu: <b>it joins the room by itself</b>.</li>
+    </ol>
+    <p class="note">Linux is in beta. <a href="https://github.com/ilysay/stremio-watch-together/blob/main/linux/README.md" style="color:var(--accent2)">Linux guide</a></p>
+    <p class="done">✓ Invite copied: just open the app once it's installed.</p>
+  </section>
+
+  <section class="card" id="mac" hidden>
+    <p style="margin:0 0 6px;font-weight:600">The Mac version is coming soon 🍎</p>
+    <p class="note" style="margin:0">For now, StremioWT runs on Windows and Linux. Open this link on one of those computers to join.</p>
+  </section>
+
+  <section class="card" id="phone" hidden>
+    <p style="margin:0 0 6px;font-weight:600">Open this link on your computer 💻</p>
+    <p class="note" style="margin:0">StremioWT runs on Windows and Linux, next to the Stremio app. Send this link to yourself and open it there.</p>
+    <button class="btn secondary" id="copyLink" style="margin-top:14px">Copy this link</button>
+  </section>
+
+  <!-- Déjà l'appli : on l'ouvre directement sur le salon. -->
+  <section class="card" id="have" hidden>
+    <a class="btn secondary" id="open" href="#">Already have StremioWT? Open the room</a>
+  </section>
+
+  <section class="card" id="codeCard" hidden>
+    <p class="label">Invite code (if the app asks for it)</p>
+    <div class="code"><input id="code" readonly><button id="copyCode">Copy</button></div>
+  </section>
+
+  <p class="others" id="others">Other systems: <a href="#" data-os="windows">Windows</a> · <a href="#" data-os="linux">Linux</a> · <a href="#" data-os="mac">Mac</a>
+    · <a href="https://github.com/ilysay/stremio-watch-together">Source code</a></p>
+</main>
+<script>
+  // Le code d'invitation est après le « # » : il ne quitte jamais ce navigateur (jamais envoyé au serveur).
+  const code = (location.hash.match(/WT-[A-Za-z0-9_-]{8,}/) || [])[0] || '';
+  const ua = navigator.userAgent;
+  const detected = /Android|iPhone|iPad|iPod/i.test(ua) ? 'phone'
+    : /Windows/i.test(ua) ? 'windows'
+    : /Macintosh|Mac OS X/i.test(ua) ? 'mac'
+    : /Linux|X11|CrOS/i.test(ua) ? 'linux' : 'windows';
+  const $ = id => document.getElementById(id);
+  const copy = text => navigator.clipboard && navigator.clipboard.writeText(text).catch(() => {});
+
+  function show(os) {
+    for (const id of ['windows', 'linux', 'mac', 'phone']) $(id).hidden = id !== os;
+    $('have').hidden = !code || os === 'phone' || os === 'mac';
+  }
+  if (!code) { $('title').textContent = '🍿 Stremio Watch Together'; }
+  else {
+    $('code').value = code;
+    $('codeCard').hidden = false;
+    $('open').href = 'stremiowt://join/' + code;
+  }
+  show(detected);
+
+  // Télécharger copie aussi le code : l'appli le trouve dans le presse-papier à son ouverture et rejoint seule.
+  document.querySelectorAll('[data-copy]').forEach(a => a.addEventListener('click', () => {
+    if (!code) return;
+    copy(code);
+    a.closest('.card').querySelector('.done').style.display = 'block';
+  }));
+  $('copyCode').addEventListener('click', () => { copy(code); $('copyCode').textContent = 'Copied ✓'; });
+  $('copyLink').addEventListener('click', () => { copy(location.href); $('copyLink').textContent = 'Link copied ✓'; });
+  document.querySelectorAll('[data-os]').forEach(a => a.addEventListener('click', e => { e.preventDefault(); show(a.dataset.os); }));
+</script>
+</body>
+</html>

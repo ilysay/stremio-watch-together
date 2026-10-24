@@ -4,6 +4,11 @@ namespace StremioWT
 {
     static class Invite
     {
+        // Lien d'invitation : une page qui reconnaît le système de l'ami (téléchargement adapté) ou ouvre l'appli.
+        // Le code est après le « # », donc jamais envoyé au serveur de la page.
+        internal const string JoinPage = "https://join.stremiowt.workers.dev/";
+        internal static string Link(string code) => JoinPage + "#" + code;
+
         internal static string Make(string server, string room)
         {
             var raw = Convert.ToBase64String(Encoding.UTF8.GetBytes(Json.Serialize(new Dictionary<string, object> { ["s"] = server, ["r"] = room })));

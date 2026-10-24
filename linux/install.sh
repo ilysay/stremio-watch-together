@@ -147,7 +147,8 @@ cat > "$HOME/.local/share/applications/stremiowt.desktop" <<DESKTOP
 Type=Application
 Name=Stremio Watch Together
 Comment=Watch Stremio with friends, in sync
-Exec=$BIN/stremiowt-launch
+Exec=$BIN/stremiowt-launch %u
+MimeType=x-scheme-handler/stremiowt;
 Icon=$DATA/icon.png
 Terminal=false
 Categories=AudioVideo;Video;Network;
@@ -158,6 +159,8 @@ Name=My diary
 Exec=$BIN/stremiowt-launch --diary
 DESKTOP
 update-desktop-database "$HOME/.local/share/applications" > /dev/null 2>&1 || true
+# Les liens « stremiowt:// » de la page d'invitation ouvrent StremioWT directement dans le salon.
+xdg-mime default stremiowt.desktop x-scheme-handler/stremiowt > /dev/null 2>&1 || true
 ok "Installed: \"Stremio Watch Together\" is now in your applications menu"
 
 printf '\n\033[32m\033[1mAll set!\033[0m Open \033[1mStremio Watch Together\033[0m from your applications menu.\n'

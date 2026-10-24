@@ -66,6 +66,10 @@ namespace StremioWT
             }
         }
 
+        // Invitation reçue au lancement (lien « stremiowt://join/WT-… » cliqué sur la page d'invitation).
+        internal static string LaunchInvite;
+        internal static string InviteFromArgs(string[] args) => args.FirstOrDefault(a => Invite.Parse(a) != null);
+
         internal static bool IsWindows => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         internal static bool IsMac => RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
 

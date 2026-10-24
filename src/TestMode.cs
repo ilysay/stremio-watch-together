@@ -12,6 +12,15 @@ namespace StremioWT
 
         internal static bool TryRun(string[] args)
         {
+            // --test-update : cherche la dernière version, l'installe à la place de cet exécutable et dit ce qui s'est passé.
+            if (args.Contains("--test-update"))
+            {
+                Active = true;
+                var version = Updates.NewerVersion().GetAwaiter().GetResult();
+                Console.Error.WriteLine("NOUVELLE VERSION " + (version ?? "aucune"));
+                if (version != null) Console.Error.WriteLine("INSTALLATION " + (Updates.Install(p => { if (p % 25 == 0) Console.Error.WriteLine(p + " %"); }).GetAwaiter().GetResult() ? "OK" : "ECHEC"));
+                return true;
+            }
             int join = Array.IndexOf(args, "--test-join");
             bool host = args.Contains("--test-host");
             if (!host && (join < 0 || join + 1 >= args.Length)) return false;

@@ -53,6 +53,9 @@ namespace StremioWT
             await AttachStremio(await StremioApp.EnsureRunning(stremioExe));
             Console.WriteLine("Connecté à Stremio.");
             await ReadMyShell();
+            // Stremio ouvert dans un navigateur plutôt que dans son appli : on dit pourquoi.
+            if (StremioApp.IsBrowser(stremioExe))
+                ShowChat(new ChatMessage { From = "StremioWT", System = true, Text = StremioApp.WebReason() });
             _ = Task.Run(async () =>
             {
                 try
@@ -220,6 +223,8 @@ namespace StremioWT
                     if (!connected)
                     {
                         connected = true;
+                        // « Salon rejoint » compté ici, une fois vraiment dans le salon (pas au clic sur Rejoindre).
+                        if (ConnectedSince == null && !isHost) _ = Telemetry.Send("join");
                         if (ConnectedSince == null) ConnectedSince = DateTime.UtcNow;
                         AnnounceShell();
                         Console.WriteLine(everConnected ? "Reconnecté au salon." : $"Connecté au salon {room}. Laisse cette fenêtre ouverte pendant le film (tu peux la réduire).");

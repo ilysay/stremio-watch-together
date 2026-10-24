@@ -46,6 +46,14 @@ namespace StremioWT
             screen.Content = BuildStart();
             Opened += async (s, e) =>
             {
+                if (Program.LaunchInvite != null)
+                {
+                    codeBox.Text = Program.LaunchInvite;
+                    startStatus.Text = L.T("Invitation reçue, connexion au salon…");
+                    Program.LaunchInvite = null;
+                    StartJoin();
+                    return;
+                }
                 try { Program.ClipboardSnapshot = await Clipboard.GetTextAsync() ?? ""; } catch { }
                 var invite = Rooms.InviteFromClipboard();
                 if (invite != null)
@@ -109,12 +117,22 @@ namespace StremioWT
 
             var update = Primary("");
             update.IsVisible = false;
-            update.Click += (s, e) => OpenUrl(Updates.DownloadUrl);
+            update.Click += async (s, e) =>
+            {
+                // Mise à jour dans l'appli ; en cas d'échec, la page de téléchargement s'ouvre comme avant.
+                update.IsEnabled = false;
+                bool ok = await Updates.Install(p => Dispatcher.UIThread.Post(() => update.Content = L.F("Mise à jour… {0} %", p)));
+                if (ok) { Program.Restart(); return; }
+                update.IsEnabled = true;
+                update.Content = L.T("Mise à jour impossible : la page de téléchargement s'ouvre.");
+                OpenUrl(Updates.DownloadUrl);
+            };
             Opened += (s, e) => OpenDiaryIfAsked();
+            Opened += (s, e) => { var updated = Updates.AfterUpdate(); if (updated != null && string.IsNullOrEmpty(startStatus.Text)) startStatus.Text = L.F("Mis à jour vers la version {0} ✓", updated); };
             Opened += async (s, e) =>
             {
                 var version = await Updates.NewerVersion();
-                if (version != null) { update.Content = L.F("Nouvelle version {0} disponible : télécharger", version); update.IsVisible = true; }
+                if (version != null) { update.Content = L.F("Nouvelle version {0} disponible : mettre à jour", version); update.IsVisible = true; }
             };
             var settings = Secondary("⚙  " + L.T("Paramètres"));
             settings.Click += async (s, e) => await new SettingsWindow().ShowDialog(this);
@@ -183,16 +201,18 @@ namespace StremioWT
             if (s.IsHost)
             {
                 inviteBox.Text = code ?? "";
-                var copy = new Button { Content = L.T("Copier"), Classes = { "accent" }, Padding = new Thickness(14, 8) };
-                copy.Click += async (o, e) => { await Clipboard.SetTextAsync(inviteBox.Text); Flash(copy, L.T("Copié ✓")); };
-                var withLink = new Button { Content = "🔗", Padding = new Thickness(12, 8) };
-                ToolTip.SetTip(withLink, L.T("Copier l'invitation avec le lien de téléchargement (pour les amis qui n'ont pas l'appli)"));
-                withLink.Click += async (o, e) => { await Clipboard.SetTextAsync(Rooms.InviteMessage(inviteBox.Text)); Flash(withLink, "✓"); };
-                var row = new DockPanel();
-                DockPanel.SetDock(withLink, Dock.Right); DockPanel.SetDock(copy, Dock.Right);
-                withLink.Margin = new Thickness(6, 0, 0, 0); copy.Margin = new Thickness(8, 0, 0, 0);
-                row.Children.Add(withLink); row.Children.Add(copy); row.Children.Add(inviteBox);
-                inviteCard = Card(Heading(L.T("Code d'invitation")), row);
+                // Un seul bouton, sans ambiguïté : c'est une invitation (page de téléchargement + entrée dans le salon).
+                var copy = Primary("📋  " + L.T("Copier le lien d'invitation"));
+                copy.Click += async (o, e) => { await Clipboard.SetTextAsync(Invite.Link(inviteBox.Text)); Flash(copy, L.T("Lien copié ✓")); };
+                // Le code seul, pour ceux qui ont déjà l'appli et préfèrent le coller.
+                var copyCode = new Button { Content = L.T("Copier le code"), Padding = new Thickness(12, 9) };
+                copyCode.Click += async (o, e) => { await Clipboard.SetTextAsync(inviteBox.Text); Flash(copyCode, L.T("Code copié ✓")); };
+                // Le code (pour ceux qui ont déjà l'appli), puis le lien d'invitation, qui sert aussi aux autres.
+                var codeRow = new DockPanel();
+                DockPanel.SetDock(copyCode, Dock.Right);
+                copyCode.Margin = new Thickness(8, 0, 0, 0);
+                codeRow.Children.Add(copyCode); codeRow.Children.Add(inviteBox);
+                inviteCard = Card(Heading(L.T("Inviter des amis")), codeRow, copy, Muted(L.T("Le lien fait aussi télécharger StremioWT aux amis qui ne l'ont pas.")));
             }
 
             adminBox.Content = new TextBlock { Text = L.T("Hébergeur admin"), FontWeight = FontWeight.SemiBold, Foreground = Palette.Brush(Palette.Text) };

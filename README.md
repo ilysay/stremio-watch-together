@@ -40,7 +40,8 @@ Stremio has no watch party. Screen sharing on Discord kills the quality and the 
 ## Features
 
 - 🎬 **Real sync**: play, pause, seek and next episode follow the room, with automatic catch-up.
-- 🔗 **Join in one click**: the host copies an invite code (`WT-…`), friends paste it, done. If the code is already in the clipboard, opening the app joins the room by itself.
+- 🔗 **Join in one click**: the host sends an invite link. Friends without the app land on a page that gets them the right download (Windows or Linux) and joins the room as soon as they open it; friends who have it go straight in. The bare code (`WT-…`) still works too.
+- 🔄 **Updates in one click**: when a new version is out, the app downloads it from GitHub, checks its SHA-256 fingerprint and restarts.
 - ⏳ **Waits for slow loaders**: when someone's stream is buffering, everyone pauses and resumes together. A 30-second safeguard and a "don't wait for them" click keep the night going.
 - 👑 **Host controls**: one switch and only the host can pause, seek or change episode.
 - 👀 **See everyone's Stremio version** next to their name, with a heads-up when versions don't open torrents the same way.

@@ -67,7 +67,7 @@ namespace StremioWT
             }
             var code = Invite.Make(publicUrl, room);
             Config["lastHosted"] = code;
-            SetClipboardText(code);
+            SetClipboardText(Invite.Link(code));
             Console.WriteLine(L.T("Code d'invitation copié : colle-le à tes amis."));
             Remember(name, stremioExe);
             _ = Telemetry.Send("host", 1);
@@ -76,7 +76,7 @@ namespace StremioWT
 
         // Message à coller aux amis : le lien de téléchargement pour ceux qui n'ont pas l'appli, puis le code
         // (l'appli retrouve le code WT-… n'importe où dans le texte copié).
-        internal static string InviteMessage(string code) => L.F("Rejoins ma soirée film sur Stremio !\n1. Télécharge l'appli : {0}\n2. Copie ce message puis ouvre StremioWT.\n\n{1}", Updates.DownloadUrl, code);
+        internal static string InviteMessage(string code) => L.F("Rejoins ma soirée film sur Stremio !\n1. Télécharge l'appli : {0}\n2. Copie ce message puis ouvre StremioWT.\n\n{1}", Invite.Link(code), code);
 
         internal static Session Join(string name, string inviteText)
         {
@@ -84,7 +84,6 @@ namespace StremioWT
             var stremioExe = RequireStremio();
             Config["lastJoined"] = invite.server + "/" + invite.room;
             Remember(name, stremioExe);
-            Telemetry.Send("join");
             return new Session(invite.server, invite.room, name, false, stremioExe, null);
         }
 

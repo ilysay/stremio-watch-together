@@ -18,9 +18,9 @@ namespace StremioWT
         readonly Label statusDot = new Label { Text = "●", AutoSize = true, ForeColor = Theme.Muted, Font = new Font("Segoe UI", 13f), BackColor = Color.Transparent };
         readonly Label statusText = new Label { AutoSize = true, ForeColor = Theme.Text, Font = Theme.Section, BackColor = Color.Transparent };
         readonly ListBox membersList = new ListBox { IntegralHeight = false, BorderStyle = BorderStyle.None, BackColor = Theme.Card, ForeColor = Theme.Text, Font = Theme.Body };
-        readonly Card inviteCard = new Card(L.T("Code d'invitation"));
+        readonly Card inviteCard = new Card(L.T("Inviter des amis"));
         readonly InputBox inviteBox = new InputBox();
-        readonly FlatButton copyButton = new FlatButton(L.T("Copier"), primary: true);
+        readonly FlatButton copyButton = new FlatButton("📋  " + L.T("Copier le lien d'invitation"), primary: true);
         readonly ToggleSwitch adminBox = new ToggleSwitch(L.T("Hébergeur admin")) { ForeColor = Theme.Text, Font = Theme.Bold, BackColor = Theme.Card };
         readonly Label adminHint = new Label { AutoSize = false, ForeColor = Theme.Muted, Font = Theme.Small, BackColor = Theme.Card };
         readonly ChatFeed chatFeed = new ChatFeed();
@@ -64,6 +64,7 @@ namespace StremioWT
                 Environment.Exit(0);
             };
             Shown += (s, e) => AutoJoinFromClipboard();
+            Shown += (s, e) => { var updated = Updates.AfterUpdate(); if (updated != null && string.IsNullOrEmpty(startStatus.Text)) startStatus.Text = L.F("Mis à jour vers la version {0} ✓", updated); };
         }
 
         protected override void OnHandleCreated(EventArgs e)
@@ -130,11 +131,20 @@ namespace StremioWT
             settings.Click += (s, e) => new SettingsForm().ShowDialog(this);
             new ToolTip().SetToolTip(settings, L.T("Paramètres"));
             var update = new FlatButton("", primary: true) { Location = new Point(24, 680), Size = new Size(432, 44), Visible = false };
-            update.Click += (s, e) => OpenUrl(Updates.DownloadUrl);
+            update.Click += async (s, e) =>
+            {
+                // Mise à jour dans l'appli ; en cas d'échec, la page de téléchargement s'ouvre comme avant.
+                update.Enabled = false;
+                bool ok = await Updates.Install(p => Ui(() => update.Text = L.F("Mise à jour… {0} %", p)));
+                if (ok) { Program.Restart(); return; }
+                update.Enabled = true;
+                update.Text = L.T("Mise à jour impossible : la page de téléchargement s'ouvre.");
+                OpenUrl(Updates.DownloadUrl);
+            };
             Shown += async (s, e) =>
             {
                 var version = await Updates.NewerVersion();
-                if (version != null && !IsDisposed) { update.Text = L.F("Nouvelle version {0} disponible : télécharger", version); update.Visible = true; }
+                if (version != null && !IsDisposed) { update.Text = L.F("Nouvelle version {0} disponible : mettre à jour", version); update.Visible = true; }
             };
             startPanel.Controls.AddRange(new Control[] { Header(), nameCard, joinCard, hostCard, startStatus, reportButton, update, journalStart, settings });
         }
@@ -159,34 +169,35 @@ namespace StremioWT
             statusCard.Controls.AddRange(new Control[] { statusDot, statusText, membersList });
 
             inviteCard.Location = new Point(24, 266);
-            inviteCard.Size = new Size(432, 92);
-            inviteBox.SetBounds(16, 42, 252, 36);
+            inviteCard.Size = new Size(432, 150);
+            // Le code (pour ceux qui ont déjà l'appli), puis le lien d'invitation, qui sert aussi aux autres :
+            // la page leur fait télécharger l'appli, puis les fait entrer dans le salon.
+            inviteBox.SetBounds(16, 40, 276, 34);
             inviteBox.Box.ReadOnly = true;
             inviteBox.Box.BackColor = Theme.Input;
-            copyButton.SetBounds(276, 41, 92, 38);
-            copyButton.Click += (s, e) => { try { Clipboard.SetText(inviteBox.Box.Text); FlashText(copyButton, L.T("Copié ✓")); } catch { } };
-            // Pour les amis qui n'ont pas encore l'appli : le code précédé du lien de téléchargement.
-            var inviteWithLink = new FlatButton("🔗", primary: false) { Font = new Font("Segoe UI Emoji", 12f) };
-            inviteWithLink.SetBounds(376, 41, 40, 38);
-            inviteWithLink.Click += (s, e) => { try { Clipboard.SetText(Rooms.InviteMessage(inviteBox.Box.Text)); FlashText(inviteWithLink, "✓"); } catch { } };
-            new ToolTip().SetToolTip(inviteWithLink, L.T("Copier l'invitation avec le lien de téléchargement (pour les amis qui n'ont pas l'appli)"));
-            inviteCard.Controls.AddRange(new Control[] { inviteBox, copyButton, inviteWithLink });
+            var copyCode = new FlatButton(L.T("Copier le code"), primary: false) { Font = Theme.Small };
+            copyCode.SetBounds(300, 38, 116, 36);
+            copyCode.Click += (s, e) => { try { Clipboard.SetText(inviteBox.Box.Text); FlashText(copyCode, L.T("Code copié ✓")); } catch { } };
+            copyButton.SetBounds(16, 82, 400, 36);
+            copyButton.Click += (s, e) => { try { Clipboard.SetText(Invite.Link(inviteBox.Box.Text)); FlashText(copyButton, L.T("Lien copié ✓")); } catch { } };
+            var inviteHint = Dialogs.Text(L.T("Le lien fait aussi télécharger StremioWT aux amis qui ne l'ont pas."), Theme.Small, Theme.Muted, 16, 124, 400, 20);
+            inviteCard.Controls.AddRange(new Control[] { inviteBox, copyButton, copyCode, inviteHint });
 
-            adminCard.Location = new Point(24, 370);
+            adminCard.Location = new Point(24, 428);
             adminCard.Size = new Size(432, 76);
             adminBox.SetBounds(16, 12, 400, 26);
             adminHint.SetBounds(64, 38, 356, 34);
             adminBox.CheckedChanged += (s, e) => { if (session != null && session.IsHost) session.SetAdmin(adminBox.Checked); };
             adminCard.Controls.AddRange(new Control[] { adminBox, adminHint });
 
-            chatCard.Location = new Point(24, 458);
-            chatCard.Size = new Size(432, 274);
-            chatFeed.SetBounds(16, 40, 404, 176);
-            chatInput.SetBounds(16, 224, 214, 36);
+            chatCard.Location = new Point(24, 516);
+            chatCard.Size = new Size(432, 216);
+            chatFeed.SetBounds(16, 40, 404, 118);
+            chatInput.SetBounds(16, 166, 214, 36);
             chatInput.Box.MaxLength = Chat.MaxText;
-            emoteButton.SetBounds(236, 223, 44, 38);
-            gifButton.SetBounds(286, 223, 52, 38);
-            sendButton.SetBounds(344, 223, 76, 38);
+            emoteButton.SetBounds(236, 165, 44, 38);
+            gifButton.SetBounds(286, 165, 52, 38);
+            sendButton.SetBounds(344, 165, 76, 38);
             chatInput.Box.KeyDown += (s, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; SendChat(); } };
             sendButton.Click += (s, e) => SendChat();
             emoteButton.Click += (s, e) =>
@@ -217,6 +228,14 @@ namespace StremioWT
 
         void AutoJoinFromClipboard()
         {
+            if (Program.LaunchInvite != null)
+            {
+                codeBox.Box.Text = Program.LaunchInvite;
+                startStatus.Text = L.T("Invitation reçue, connexion au salon…");
+                Program.LaunchInvite = null;
+                StartJoin();
+                return;
+            }
             var invite = Rooms.InviteFromClipboard();
             if (invite == null) return;
             codeBox.Box.Text = Clipboard.GetText().Trim();

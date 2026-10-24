@@ -40,7 +40,8 @@ Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord
 ## Fonctionnalités
 
 - 🎬 **Vraie synchro** : lecture, pause, déplacement et épisode suivant suivent le salon, avec recalage automatique.
-- 🔗 **Rejoindre en un clic** : l'hôte copie un code d'invitation (`WT-…`), les amis le collent, c'est tout. Si le code est déjà dans le presse-papier, ouvrir l'appli suffit pour entrer.
+- 🔗 **Rejoindre en un clic** : l'hôte envoie un lien d'invitation. Les amis qui n'ont pas l'appli arrivent sur une page qui leur donne le bon téléchargement (Windows ou Linux) et les fait entrer dès qu'ils l'ouvrent ; ceux qui l'ont entrent directement. Le code seul (`WT-…`) marche toujours.
+- 🔄 **Mises à jour en un clic** : quand une version sort, l'appli la télécharge depuis GitHub, vérifie son empreinte SHA-256 et redémarre.
 - ⏳ **Attend ceux qui chargent** : si le flux de quelqu'un charge, tout le monde se met en pause et reprend ensemble. Un garde-fou de 30 secondes et un clic « ne pas l'attendre » évitent de bloquer la soirée.
 - 👑 **Contrôle de l'hôte** : un interrupteur, et seul l'hôte peut mettre pause, avancer ou changer d'épisode.
 - 👀 **La version de Stremio de chacun** à côté de son pseudo, avec un avertissement quand les versions n'ouvrent pas les torrents de la même façon.
