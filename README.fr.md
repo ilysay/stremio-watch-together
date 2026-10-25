@@ -32,7 +32,7 @@ Une petite appli, un code d'invitation, sans compte, sans serveur.
 
 ## En vidéo
 
-https://github.com/user-attachments/assets/a3c3443b-5663-4645-815f-d716168c4983
+https://github.com/user-attachments/assets/d6ba2f92-6f26-4fec-a811-aa4ec20408ba
 
 ## Pourquoi
 
