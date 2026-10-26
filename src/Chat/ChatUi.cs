@@ -63,24 +63,7 @@ namespace StremioWT
 
         static Color ColorFor(string name) => NameColors[Math.Abs((name ?? "").Aggregate(17, (h, c) => h * 31 + c)) % NameColors.Length];
 
-        // Charge un GIF animé (le flux reste ouvert : WinForms en a besoin pour l'animation).
-        public static async void LoadGif(PictureBox box, string url, Control owner)
-        {
-            if (!Chat.IsAllowedGif(url)) return;
-            try
-            {
-                var bytes = await Program.Http.GetByteArrayAsync(url);
-                var img = Image.FromStream(new MemoryStream(bytes));
-                if (box.IsDisposed) return;
-                if (img.Width > 0 && img.Height > 0)
-                {
-                    double ratio = Math.Min(box.Width / (double)img.Width, box.Height / (double)img.Height);
-                    box.Size = new Size(Math.Max(40, (int)(img.Width * ratio)), Math.Max(30, (int)(img.Height * ratio)));
-                }
-                box.Image = img;
-            }
-            catch { }
-        }
+        public static void LoadGif(PictureBox box, string url, Control owner) => GifAnimation.Load(box, url, owner is ChatFeed);
     }
 
     class EmotePicker : Form
@@ -149,30 +132,23 @@ namespace StremioWT
             status.Text = query.Length == 0 ? L.T("Tendances : tape pour chercher, ou colle un lien Giphy puis Entrée") : L.T("Recherche…");
             try
             {
-                var url = Chat.GifServer + "?q=" + Uri.EscapeDataString(query) + "&lang=" + L.Lang;
-                using (var res = await Program.Http.GetAsync(url, cts.Token))
+                var list = await Chat.SearchGifs(query, cts.Token);
+                if (cts.IsCancellationRequested) return;
+                if (list == null)
                 {
-                    if ((int)res.StatusCode == 503)
-                    {
-                        status.Text = L.T("Recherche de GIF pas encore activée. Colle un lien Giphy dans la barre ci-dessus puis Entrée.");
-                        return;
-                    }
-                    var data = Program.Json.Deserialize<Dictionary<string, object>>(await res.Content.ReadAsStringAsync());
-                    if (cts.IsCancellationRequested) return;
-                    results.Controls.Clear();
-                    var list = (data.TryGetValue("results", out var r) ? r as System.Collections.ArrayList : null) ?? new System.Collections.ArrayList();
-                    foreach (Dictionary<string, object> g in list.OfType<Dictionary<string, object>>())
-                    {
-                        var gif = g.TryGetValue("gif", out var gg) ? gg as string : null;
-                        var preview = g.TryGetValue("preview", out var pp) ? pp as string : gif;
-                        if (!Chat.IsAllowedGif(gif)) continue;
-                        var pic = new PictureBox { Size = new Size(150, 110), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Theme.Input, Cursor = Cursors.Hand, Margin = new Padding(4) };
-                        pic.Click += (s, e) => { pick(gif); Close(); };
-                        results.Controls.Add(pic);
-                        ChatFeed.LoadGif(pic, preview, this);
-                    }
-                    status.Text = L.T(list.Count == 0 ? "Aucun GIF trouvé." : (query.Length == 0 ? "Tendances : clique sur un GIF pour l'envoyer" : "Clique sur un GIF pour l'envoyer"));
+                    status.Text = L.T("Recherche de GIF pas encore activée. Colle un lien Giphy dans la barre ci-dessus puis Entrée.");
+                    return;
                 }
+                results.Controls.Clear();
+                foreach (var g in list)
+                {
+                    var gif = g["gif"];
+                    var pic = new PictureBox { Size = new Size(150, 110), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Theme.Input, Cursor = Cursors.Hand, Margin = new Padding(4) };
+                    pic.Click += (s, e) => { pick(gif); Close(); };
+                    results.Controls.Add(pic);
+                    ChatFeed.LoadGif(pic, g["preview"], this);
+                }
+                status.Text = L.T(list.Count == 0 ? "Aucun GIF trouvé." : (query.Length == 0 ? "Tendances : clique sur un GIF pour l'envoyer" : "Clique sur un GIF pour l'envoyer"));
             }
             catch (OperationCanceledException) { }
             catch { status.Text = L.T("Recherche impossible pour le moment. Tu peux coller un lien Giphy puis Entrée."); }

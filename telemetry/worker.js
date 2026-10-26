@@ -4,13 +4,17 @@
 //   GET  /stats?key=<STATS_KEY>                          → page de statistiques (protégée par ta clé)
 //   GET  /gif?q=…                                         → recherche de GIF pour le chat (via Giphy)
 //   POST /report { v, message, report }                   ← rapport de bug, envoyé seulement si l'utilisateur clique « Envoyer »
+//   POST /room   { code, s, r }                           ← code court d'un salon (« WT-K7MQ-2X9F »), posé par l'hôte
+//   GET  /room/<code>                                     → { s, r } : adresse temporaire du salon, pour qui a le code court
 //
 // Ce qui est enregistré : un identifiant d'installation ALÉATOIRE (sans lien avec la personne),
 // la version, la langue de l'appli, le type d'événement (launch / host / join / error / session / optout),
 // la taille du salon, le type de problème rencontré, la durée arrondie d'une séance,
 // et le pays (déduit par Cloudflare, l'adresse IP elle-même n'est jamais stockée).
 // Ce qui n'est JAMAIS enregistré : adresse IP, pseudo, titres, liens, messages du chat, codes de salon.
-// Exception volontaire : un rapport de bug (message + journal de l'appli, que l'utilisateur voit avant d'envoyer),
+// Exception pour les codes courts : le code, l'adresse temporaire du salon (tunnel jetable ou adresse du wifi)
+// et son numéro, effacés au bout de 24 h. Rien sur les personnes.
+// Autre exception volontaire : un rapport de bug (message + journal de l'appli, que l'utilisateur voit avant d'envoyer),
 // gardé 30 jours. Limites : 3 par minute et par expéditeur (liaison facultative « REPORT_LIMIT », rien n'est stocké), 30 par heure au total.
 //
 // Liaisons à configurer dans Cloudflare : base D1 nommée « DB », secrets « STATS_KEY » et « GIPHY_KEY ».
@@ -41,6 +45,8 @@ async function ensureTables(db) {
     db.prepare(`CREATE TABLE IF NOT EXISTS details (
        day TEXT NOT NULL, id TEXT NOT NULL, kind TEXT NOT NULL, detail TEXT NOT NULL, v TEXT NOT NULL, n INTEGER NOT NULL DEFAULT 1,
        PRIMARY KEY (day, id, kind, detail, v))`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS rooms (
+       code TEXT PRIMARY KEY, s TEXT NOT NULL, r TEXT NOT NULL, at TEXT NOT NULL)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS reports (
        id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, v TEXT NOT NULL, message TEXT NOT NULL, report TEXT NOT NULL,
        sent INTEGER NOT NULL DEFAULT 0)`),
@@ -57,6 +63,9 @@ export default {
       if (url.pathname === '/ping' && request.method === 'POST') return await ping(request, env);
       if (url.pathname === '/report' && request.method === 'POST') return await report(request, env);
       if (url.pathname === '/stats' && request.method === 'GET') return await stats(url, env);
+      if (url.pathname === '/room' && request.method === 'POST') return await roomCreate(request, env);
+      const short = url.pathname.match(/^\/room\/([0-9A-Z]{8})$/);
+      if (short && request.method === 'GET') return await roomFind(short[1], request, env);
       return new Response('Stremio Watch Together : compteur anonyme\n', { headers: { 'content-type': 'text/plain; charset=utf-8' } });
     } catch (e) {
       return new Response('erreur : ' + e.message, { status: 500 });
@@ -121,6 +130,47 @@ async function ping(request, env) {
   }
   await env.DB.batch(writes);
   return new Response(null, { status: 204 });
+}
+
+// Codes courts : 8 caractères sans I, L, O ni U (rien à confondre en les dictant). 32^8 possibilités, et un nombre
+// limité d'essais par minute et par expéditeur : impossible de deviner le code d'un salon.
+const SHORT_TTL_MS = 24 * 3600000;
+// Plafond global, même sans limite par expéditeur : un envoi en boucle ne peut pas remplir la base ni épuiser son quota.
+const SHORT_PER_HOUR = 300;
+const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+async function limited(request, env, kind) {
+  if (!env.REPORT_LIMIT) return false;
+  const { success } = await env.REPORT_LIMIT.limit({ key: kind + ':' + (request.headers.get('cf-connecting-ip') || '?') });
+  return !success;
+}
+
+async function roomCreate(request, env) {
+  if (await limited(request, env, 'room')) return json({ error: 'trop de salons' }, 429);
+  const text = await request.text();
+  if (text.length > 400) return json({ error: 'trop long' }, 400);
+  let m;
+  try { m = JSON.parse(text); } catch { return json({ error: 'json invalide' }, 400); }
+  if (!m || typeof m !== 'object') return json({ error: 'invalide' }, 400);
+  const code = String(m.code || ''), s = String(m.s || ''), r = String(m.r || '');
+  // Seulement un tunnel Cloudflare jetable, ou une adresse de réseau local (option « même wifi »).
+  const okServer = /^https:\/\/[a-z0-9-]{3,80}\.trycloudflare\.com$/.test(s)
+    || /^http:\/\/(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}):\d{1,5}$/.test(s);
+  if (!/^[0-9A-HJKMNP-TV-Z]{8}$/.test(code) || !okServer || !/^[0-9A-F]{6}$/.test(r)) return json({ error: 'invalide' }, 400);
+  const now = Date.now();
+  const recent = await env.DB.prepare(`SELECT COUNT(*) AS n FROM rooms WHERE at >= ?1`).bind(new Date(now - 3600000).toISOString()).first();
+  if (recent.n >= SHORT_PER_HOUR) return json({ error: 'trop de salons' }, 429);
+  await env.DB.prepare(`DELETE FROM rooms WHERE at < ?1`).bind(new Date(now - SHORT_TTL_MS).toISOString()).run();
+  const done = await env.DB.prepare(`INSERT OR IGNORE INTO rooms (code, s, r, at) VALUES (?1, ?2, ?3, ?4)`)
+    .bind(code, s, r, new Date(now).toISOString()).run();
+  if (!done.meta || done.meta.changes !== 1) return json({ error: 'code pris' }, 409);
+  return json({ ok: true });
+}
+
+async function roomFind(code, request, env) {
+  if (await limited(request, env, 'find')) return json({ error: 'trop d\'essais' }, 429);
+  const row = await env.DB.prepare(`SELECT s, r, at FROM rooms WHERE code = ?1`).bind(code).first();
+  if (!row || Date.now() - Date.parse(row.at) > SHORT_TTL_MS) return json({ error: 'inconnu' }, 404);
+  return json({ s: row.s, r: row.r });
 }
 
 async function report(request, env) {

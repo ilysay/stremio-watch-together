@@ -3,6 +3,12 @@ namespace StremioWT
     partial class Session
     {
         const int MaxWaitMs = 30000;
+        // Quelqu'un qui recharge sans arrêt (connexion trop lente) mettrait tout le monde en pause toutes les
+        // quelques secondes : au-delà de RepeatLimit chargements en une minute, on ne l'attend plus pendant RepeatPause.
+        const int RepeatLimit = 4;
+        static readonly TimeSpan RepeatWindow = TimeSpan.FromMinutes(1), RepeatPause = TimeSpan.FromMinutes(2);
+        readonly Dictionary<string, List<DateTime>> bufferStarts = new Dictionary<string, List<DateTime>>();
+        readonly Dictionary<string, DateTime> tooSlowUntil = new Dictionary<string, DateTime>();
         readonly object waitGate = new object();
         readonly SemaphoreSlim waitLock = new SemaphoreSlim(1, 1);
         readonly Dictionary<string, DateTime> bufferingSince = new Dictionary<string, DateTime>();
@@ -26,10 +32,23 @@ namespace StremioWT
 
         void OnBuffer(string who, bool on)
         {
+            bool tooSlow = false;
             lock (waitGate)
             {
-                if (on) { if (!bufferingSince.ContainsKey(who)) bufferingSince[who] = DateTime.UtcNow; }
-                else { bufferingSince.Remove(who); timedOut.Remove(who); }
+                if (on && !bufferingSince.ContainsKey(who))
+                {
+                    bufferingSince[who] = DateTime.UtcNow;
+                    if (!bufferStarts.TryGetValue(who, out var starts)) bufferStarts[who] = starts = new List<DateTime>();
+                    starts.Add(DateTime.UtcNow);
+                    starts.RemoveAll(t => DateTime.UtcNow - t > RepeatWindow);
+                    if (starts.Count >= RepeatLimit && !IsTooSlow(who)) { tooSlowUntil[who] = DateTime.UtcNow + RepeatPause; starts.Clear(); tooSlow = true; }
+                }
+                else if (!on) { bufferingSince.Remove(who); timedOut.Remove(who); }
+            }
+            if (tooSlow && isHost)
+            {
+                Console.WriteLine($"{who} recharge sans arrêt : on ne l'attend plus pendant 2 min.");
+                ToPage(new Dictionary<string, object> { ["type"] = "toast", ["text"] = L.F("{0} charge depuis trop longtemps, on continue sans lui", who) });
             }
             Program.Log($"{who} {(on ? "charge" : "a fini de charger")}");
             if (isHost) _ = UpdateWait();
@@ -43,7 +62,7 @@ namespace StremioWT
             try
             {
                 string[] active;
-                lock (waitGate) active = bufferingSince.Keys.Where(n => !dontWait.Contains(n) && !timedOut.Contains(n)).OrderBy(n => n).ToArray();
+                lock (waitGate) active = bufferingSince.Keys.Where(n => !dontWait.Contains(n) && !timedOut.Contains(n) && !IsTooSlow(n)).OrderBy(n => n).ToArray();
                 if (active.Length > 0)
                 {
                     if (!waitingNow)
@@ -85,6 +104,8 @@ namespace StremioWT
             Console.WriteLine(mine && shown.Length == 1 ? "Les autres t'attendent (chargement)…" : $"En attente de {string.Join(", ", shown)} (chargement)…");
             ToPage(new Dictionary<string, object> { ["type"] = "wait", ["names"] = shown, ["mine"] = mine });
         }
+
+        bool IsTooSlow(string who) => tooSlowUntil.TryGetValue(who, out var until) && DateTime.UtcNow < until;
 
         void CheckWaitTimeouts()
         {

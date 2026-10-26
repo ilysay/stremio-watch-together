@@ -33,7 +33,10 @@ namespace StremioWT
             candidates.AddRange(roots.Select(r => Path.Combine(r, "Stremio", "stremio-shell-ng.exe")));
             candidates.AddRange(roots.Select(r => Path.Combine(r, "LNV", "Stremio-4", "stremio.exe")));
             candidates.AddRange(RegistryStremio());
-            return candidates.FirstOrDefault(File.Exists) ?? FindBrowser();
+            // Stremio 4 reste souvent ouvert dans la zone de notification à côté d'un Stremio 5 installé :
+            // on prend toujours Stremio 5 s'il est là (Stremio est relancé de toute façon).
+            var found = candidates.Where(File.Exists).ToList();
+            return found.FirstOrDefault(IsStremio5) ?? found.FirstOrDefault() ?? FindBrowser();
         }
 
         // Stremio installé ailleurs (autre disque, autre dossier) : Windows le note dans « Programmes et fonctionnalités ».
@@ -146,7 +149,53 @@ namespace StremioWT
             return null;
         }
 
+        // L'accueil (panneau dans Stremio) et le salon peuvent demander Stremio en même temps :
+        // un seul à la fois le (re)lance, l'autre trouve ensuite la page déjà prête.
+        static readonly SemaphoreSlim launching = new SemaphoreSlim(1, 1);
+
         internal static async Task<string> EnsureRunning(string exe)
+        {
+            await launching.WaitAsync();
+            try { return await EnsureRunningLocked(exe); }
+            finally { launching.Release(); }
+        }
+
+        // Installe notre script dans la page de Stremio par cette connexion : fond transparent, canal __wtSend,
+        // script réinstallé à chaque rechargement. Si un ancien script est déjà là, recharge l'interface une fois.
+        // « alive » : tant qu'elle répond vrai, le fond transparent est réimposé régulièrement.
+        internal static async Task Prepare(Cdp c, Func<bool> alive)
+        {
+            await KeepTransparent(c);
+            _ = Task.Run(async () => { while (alive()) { await Task.Delay(3000); try { await KeepTransparent(c); } catch { return; } } });
+            var script = ReadInject();
+            await c.Call("Runtime.enable");
+            await c.Call("Page.enable");
+            await c.Call("Runtime.addBinding", new Dictionary<string, object> { ["name"] = "__wtSend" });
+            await c.Call("Page.addScriptToEvaluateOnNewDocument", new Dictionary<string, object> { ["source"] = script });
+            await c.Eval(script);
+            // Stremio resté ouvert depuis une version précédente de StremioWT : l'ancien script est encore dans la page.
+            // On recharge l'interface une fois ; le nouveau script s'y installe tout seul (addScriptToEvaluateOnNewDocument).
+            var loaded = await c.Eval("window.__wt && window.__wt.version") as string;
+            var lateHook = await c.Eval("!!(window.__wt && window.__wt.needsReload)") is bool late && late;
+            if (loaded != InjectVersion || lateHook)
+            {
+                Log(lateHook ? "Stremio 5 déjà chargé : rechargement de l'interface pour installer le script dès le départ"
+                    : $"script {loaded ?? "ancien"} trouvé dans Stremio (attendu {InjectVersion}) : rechargement de l'interface");
+                await c.Call("Page.reload");
+                for (int i = 0; i < 40 && (await c.Eval("window.__wt && window.__wt.version").ContinueWith(t => t.IsFaulted ? null : t.Result) as string) != InjectVersion; i++)
+                    await Task.Delay(250);
+            }
+        }
+
+        // Brancher un outil de débogage remet le fond de page de Stremio en blanc opaque, ce qui masque
+        // la vidéo de mpv (dessinée derrière l'interface transparente) : on son, image blanche.
+        // On impose un fond transparent pour toute la durée de la connexion.
+        internal static Task KeepTransparent(Cdp c) => c.Call("Emulation.setDefaultBackgroundColorOverride", new Dictionary<string, object>
+        {
+            ["color"] = new Dictionary<string, object> { ["r"] = 0, ["g"] = 0, ["b"] = 0, ["a"] = 0 },
+        });
+
+        static async Task<string> EnsureRunningLocked(string exe)
         {
             var ws = await FindPageWsUrl();
             if (ws != null) return ws;

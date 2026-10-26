@@ -12,7 +12,7 @@ One tiny app, one invite code, no account, no server.
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0c2048?style=flat-square)
 [![Linux beta](https://img.shields.io/badge/Linux-beta-f5a623?style=flat-square&logo=linux&logoColor=white)](linux/README.md)
 [![Mac test version](https://img.shields.io/badge/Mac-test%20version-e5484d?style=flat-square&logo=apple&logoColor=white)](mac/README.md)
-![Size](https://img.shields.io/badge/size-~450%20KB-0c2048?style=flat-square)
+![Size](https://img.shields.io/badge/size-~800%20KB-0c2048?style=flat-square)
 ![Languages](https://img.shields.io/badge/languages-15-0c2048?style=flat-square)
 [![License: MIT](https://img.shields.io/badge/license-MIT-0c2048?style=flat-square)](LICENSE)
 
@@ -42,16 +42,19 @@ Stremio has no watch party. Screen sharing on Discord kills the quality and the 
 ## Features
 
 - 🎬 **Real sync**: play, pause, seek and next episode follow the room, with automatic catch-up.
-- 🔗 **Join in one click**: the host sends an invite link. Friends without the app land on a page that gets them the right download (Windows, Linux or Mac) and joins the room as soon as they open it; friends who have it go straight in. The bare code (`WT-…`) still works too.
+- 🧩 **Right inside Stremio**: Stremio opens with a **Watch Together** button. Host, join, invite and see who's there without leaving Stremio; the small StremioWT window steps aside.
+- 🔗 **Join in one click**: the host sends an invite link. Friends without the app land on a page that gets them the right download (Windows, Linux or Mac) and joins the room as soon as they open it; friends who have it go straight in. Friends who have the app can also just type the room's short code, like `K7MQ2X9F`.
 - 🔄 **Updates in one click**: when a new version is out, the app downloads it from GitHub, checks its SHA-256 fingerprint and restarts.
 - ⏳ **Waits for slow loaders**: when someone's stream is buffering, everyone pauses and resumes together. A 30-second safeguard and a "don't wait for them" click keep the night going.
+- 🐢 **Slow source alert**: if someone's torrent is too slow, or finds no peers at all, everyone is told to pick a source with more seeds (or Real-Debrid).
+- 🛟 **Survives a Stremio crash**: the room stays open, friends are told, and a **Restart Stremio** button brings you back in sync.
 - 👑 **Host controls**: one switch and only the host can pause, seek or change episode.
 - 👀 **See everyone's Stremio version** next to their name, with a heads-up when versions don't open torrents the same way.
 - 💬 **Chat with emotes and GIFs**, in the window and right over the video (press **T** in Stremio).
 - 🛡️ **Private sources stay private**: Real-Debrid and other debrid links are never sent to the room. Friends get the episode and pick their own source.
 - 📔 **My diary**: everything you watch (movies, series, anime) is logged with posters and ratings. Movies export to Letterboxd in one click.
 - 🌍 **15 languages**, picked automatically from your computer's language: English, Français, Español, Português, Deutsch, Italiano, Türkçe, Polski, Čeština, Русский, 中文, हिन्दी, العربية, বাংলা, Bahasa Indonesia.
-- 🪶 **Tiny and portable**: a single ~450 KB `.exe`, nothing to install, nothing to configure.
+- 🪶 **Tiny and portable**: a single ~800 KB `.exe`, nothing to install, nothing to configure.
 
 ## Quick start
 
@@ -64,14 +67,14 @@ Stremio has no watch party. Screen sharing on Discord kills the quality and the 
 
 ### Host a movie night
 1. [Download `StremioWT.exe`](https://github.com/ilysay/stremio-watch-together/releases/latest) and double-click it.
-2. Click **Host a room**. The invite code is copied for you.
-3. Paste it to your friends (Discord, WhatsApp…), then start any movie in Stremio.
+2. Click **Host a room**, in the app or with the **Watch Together** button inside Stremio. The invite link is copied for you, and the room's short code (like `K7MQ2X9F`) is shown.
+3. Send the link or the code to your friends (Discord, WhatsApp…), then start any movie in Stremio.
 
 ### Join a friend
-1. Copy the invite code your friend sent you.
-2. Double-click `StremioWT.exe`. That's it: it reads the code and joins.
+1. Click the invite link your friend sent you, or copy their code.
+2. Double-click `StremioWT.exe`. It reads a copied code and joins by itself. You can also type the short code in **Join a room**.
 
-> Stremio restarts once in "Watch Together" mode when you join or host. Keep the small window open (minimized is fine) during the movie.
+> When you open StremioWT, Stremio restarts once in "Watch Together" mode, with the **Watch Together** button inside. Keep StremioWT open during the movie (it minimizes itself).
 
 ## How it works
 

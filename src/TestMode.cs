@@ -33,11 +33,11 @@ namespace StremioWT
                 Session session;
                 if (host)
                 {
-                    var (s, code) = Rooms.Host("Hote-" + os, args.Contains("--lan")).GetAwaiter().GetResult();
+                    var (s, code, _) = Rooms.Host("Hote-" + os, args.Contains("--lan")).GetAwaiter().GetResult();
                     session = s;
                     Console.Error.WriteLine("INVITE " + code);
                 }
-                else session = Rooms.Join("Ami-" + os, args[join + 1]);
+                else session = Rooms.Join("Ami-" + os, args[join + 1]).GetAwaiter().GetResult();
                 session.ChatReceived += m => { if (!m.Mine) Console.Error.WriteLine("CHAT " + m.From + " : " + m.Text); };
                 // Dès qu'un autre membre arrive, on le salue : chaque côté vérifie ainsi qu'il reçoit l'autre.
                 int seen = 1;

@@ -17,6 +17,24 @@ namespace StremioWT
             return true;
         }
 
+        // Bouton GIF du chat dans Stremio : la page demande, l'appli cherche (la page ne contacte aucun serveur elle-même).
+        CancellationTokenSource gifSearch;
+
+        async Task SearchGifsForPage(Dictionary<string, object> msg)
+        {
+            gifSearch?.Cancel();
+            var cts = gifSearch = new CancellationTokenSource();
+            var reply = new Dictionary<string, object> { ["type"] = "gifs", ["id"] = msg.TryGetValue("id", out var id) ? id : 0 };
+            try
+            {
+                var list = await Chat.SearchGifs(msg.TryGetValue("q", out var q) ? (q as string ?? "").Trim() : "", cts.Token);
+                if (list == null) reply["off"] = true; else reply["results"] = list;
+            }
+            catch (OperationCanceledException) { return; }
+            catch { reply["error"] = true; }
+            if (!cts.IsCancellationRequested) ToPage(reply);
+        }
+
         void ShowChat(ChatMessage msg)
         {
             ChatReceived?.Invoke(msg);

@@ -26,11 +26,29 @@
   let waiting = false;
   const WATCHED_RATIO = 0.85; // film considéré comme vu à 85 % (le générique de fin n'est pas compté)
   let watchedKey = null;
+  // Dernier épisode chargé dans ce lecteur : sous Stremio Web, un nouvel essai de lecture du même épisode
+  // (par exemple après une erreur de décodage) ne doit pas être renvoyé aux autres comme une nouvelle ouverture.
+  let loadedKey = null;
 
   const V5 = /(^|\.)stremio\.com$/.test(location.hostname);
   // Stremio Web dans un navigateur (Mac) : même interface que Stremio 5, mais la vidéo est un <video> HTML.
   const WEB = V5 && !(window.chrome && window.chrome.webview);
   W.shell = WEB ? 'web' : V5 ? 5 : 4;
+  // Stremio Web sous Linux : Chromium affirme lire le HEVC (h265) mais n'y arrive souvent pas (erreur de décodage).
+  // On répond « non » pour le HEVC : le serveur de Stremio convertit alors la vidéo en H.264, lisible partout.
+  if (WEB && /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent) && !window.__wtNoHevc) {
+    window.__wtNoHevc = true;
+    const hevc = t => /hev1|hvc1|hevc|h265/i.test(t || '');
+    const isType = MediaSource.isTypeSupported.bind(MediaSource);
+    MediaSource.isTypeSupported = t => hevc(t) ? false : isType(t);
+    const canPlay = HTMLMediaElement.prototype.canPlayType;
+    HTMLMediaElement.prototype.canPlayType = function (t) { return hevc(t) ? '' : canPlay.call(this, t); };
+    const mc = navigator.mediaCapabilities;
+    if (mc && mc.decodingInfo) {
+      const info = mc.decodingInfo.bind(mc);
+      mc.decodingInfo = c => c && c.video && hevc(c.video.contentType) ? Promise.resolve({ supported: false, smooth: false, powerEfficient: false }) : info(c);
+    }
+  }
   // Script arrivé après le chargement de la page : sous Stremio 5 l'interface a déjà gardé sa propre
   // référence à postMessage, nos espions ne verraient rien. Le programme recharge alors la page.
   W.needsReload = V5 && !WEB && document.readyState !== 'loading';
@@ -73,6 +91,24 @@
     showBanner(T('{0} utilise une source privée (Real-Debrid…) : choisis ta propre source pour cet épisode', who || T("L'hôte")));
   }
 
+  // Torrent lu, pour l'alerte de téléchargement trop lent (l'appli lit sa vitesse sur le serveur local de Stremio).
+  // Dans le lien du lecteur (Stremio 4 et 5) ; sinon dans l'adresse de la page, où Stremio 5 / Web range la
+  // source compressée (zlib + base64) : Stremio Web lit une vidéo convertie, sans le torrent dans son lien.
+  async function reportTorrent(src) {
+    let hash = null, idx = 0;
+    const m = /\/([0-9a-f]{40})\/(\d+)/i.exec(src || '');
+    if (m) { hash = m[1].toLowerCase(); idx = +m[2]; }
+    else if (V5) try {
+      let b64 = dec(location.hash.split('/')[2] || '').replace(/-/g, '+').replace(/_/g, '/');
+      b64 += '='.repeat((4 - b64.length % 4) % 4);
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const stream = JSON.parse(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate'))).text());
+      if (stream && /^[0-9a-f]{40}$/i.test(stream.infoHash || '')) { hash = stream.infoHash.toLowerCase(); idx = stream.fileIdx || 0; }
+    } catch (e) {}
+    toNode({ type: 'torrent', hash, idx });
+  }
+  W.duration = () => { const d = device(); return (d && d.length) || 0; };
+
   W.state = () => {
     const d = device();
     if (!inPlayer() || !isReady(d) || loading) return null;
@@ -83,9 +119,17 @@
     if (!m || m.type !== 6 || !Array.isArray(m.args)) return;
     const ev = m.args[0], args = m.args[1] || [];
     if (ev === 'mpv-command' && args[0] === 'loadfile') {
-      loading = true; readyAt = 0;
       const h = location.hash;
-      privateSource = !isLocalUrl(args[1]) && !(WEB && /^blob:/.test(args[1] || ''));
+      // Stremio Web : en quittant le lecteur, la vidéo vidée déclenche aussi un « chargement ». Ce n'est pas une
+      // ouverture : la traiter comme telle effaçait l'ouverture demandée par un autre (on restait à l'accueil).
+      if (!inPlayer()) return;
+      // Stremio Web relance parfois le chargement du même épisode (autre format, nouvel essai) : rien de nouveau
+      // à partager, et un lien vide ne veut pas dire « source privée ».
+      if (WEB && loadedKey === videoKey(h) && inPlayer()) { debug('nouvel essai de lecture de ' + videoKey(h) + ' (non partagé)'); loading = true; readyAt = 0; return; }
+      loading = true; readyAt = 0;
+      loadedKey = videoKey(h);
+      privateSource = !!args[1] && !isLocalUrl(args[1]) && !(WEB && /^blob:/.test(args[1] || ''));
+      reportTorrent(args[1]);
       if (V5) mpv.reset();
       if (choosingSource) { choosingSource = false; hideBanner(); }
       wasFollowing = remoteOpenKey !== null && videoKey(h) === remoteOpenKey;
@@ -150,22 +194,34 @@
   // ces évènements, un peu plus tard : ceux qui suivent de peu une action appliquée par nous sont ignorés.
   const html5 = (() => {
     let video = null, quietUntil = 0;
+    // Ce que la synchro vient de demander au lecteur : les événements qui y correspondent sont les nôtres et ne
+    // sont pas renvoyés aux autres. Un simple délai ne suffit pas : sous Stremio Web, un saut dans une vidéo
+    // convertie arrive souvent plusieurs secondes après (on renvoyait alors notre propre saut, en boucle).
+    let wantTime = null, wantPaused = null;
+    const OURS_MS = 10000;
     const quiet = () => { quietUntil = now() + 900; };
     const out = (ev, args) => { if (now() >= quietUntil) onOut({ type: 6, args: [ev, args] }); };
+    const oursSeek = () => wantTime && now() - wantTime.at < OURS_MS && Math.abs(video.currentTime - wantTime.v) < 1.5;
+    const oursPause = () => wantPaused && now() - wantPaused.at < OURS_MS && video.paused === wantPaused.v;
     const dev = {
       get time() { return video ? video.currentTime * 1000 : 0; },
-      set time(ms) { if (video) { quiet(); video.currentTime = ms / 1000; } },
+      set time(ms) { if (video) { quiet(); wantTime = { v: ms / 1000, at: now() }; video.currentTime = ms / 1000; } },
       get paused() { return !video || video.paused; },
-      set paused(p) { if (!video) return; quiet(); if (p) video.pause(); else video.play().catch(() => {}); },
+      set paused(p) { if (!video) return; quiet(); wantPaused = { v: !!p, at: now() }; if (p) video.pause(); else video.play().catch(() => {}); },
       get length() { return video && isFinite(video.duration) ? video.duration * 1000 : 0; },
       get state() { return !video || video.readyState < 1 ? 1 : video.seeking || video.readyState < 3 ? 2 : video.paused ? 4 : 3; },
     };
     function attach(v) {
       video = v;
       v.addEventListener('loadstart', () => onOut({ type: 6, args: ['mpv-command', ['loadfile', v.currentSrc || v.src || '']] }));
-      v.addEventListener('play', () => out('mpv-set-prop', ['pause', false]));
-      v.addEventListener('pause', () => { if (!v.ended) out('mpv-set-prop', ['pause', true]); });
-      v.addEventListener('seeked', () => out('mpv-set-prop', ['time-pos', v.currentTime]));
+      // Erreurs de lecture du navigateur (format non pris en charge, décodage…) : visibles dans le journal de l'appli.
+      v.addEventListener('error', () => {
+        const e = v.error, src = v.currentSrc || v.src || '';
+        debug('erreur vidéo du navigateur : ' + (e ? 'code ' + e.code + (e.message ? ' · ' + e.message : '') : 'inconnue') + ' · ' + (isLocalUrl(src) ? 'serveur local ' + src.split('?')[0].split('/').slice(3, 5).join('/') : /^blob:/.test(src) ? 'flux transcodé' : src ? 'lien externe' : 'aucun lien'));
+      });
+      v.addEventListener('play', () => { if (!oursPause()) out('mpv-set-prop', ['pause', false]); });
+      v.addEventListener('pause', () => { if (!v.ended && !oursPause()) out('mpv-set-prop', ['pause', true]); });
+      v.addEventListener('seeked', () => { if (!oursSeek()) out('mpv-set-prop', ['time-pos', v.currentTime]); });
       // La vidéo a pu commencer à charger avant qu'on la voie : on signale ce chargement.
       if (v.readyState > 0 || v.currentSrc) onOut({ type: 6, args: ['mpv-command', ['loadfile', v.currentSrc || v.src || '']] });
     }
@@ -208,8 +264,10 @@
   // une source privée (pas de lien : on ouvre la page de l'épisode pour choisir sa source), 'player' sinon.
   function openHash(msg, force) {
     const hash = msg.hash, key = videoKey(hash);
-    if (sameVideo(location.hash, hash)) return false;
     let target = sourceFor(msg), kind = 'player';
+    // Même épisode : on ne rouvre que si l'autre a explicitement changé de source (« open » avec un autre lien).
+    const otherSource = msg.type === 'open' && !!target && inPlayer() && dec(target) !== dec(location.hash);
+    if (sameVideo(location.hash, hash) && !otherSource) return false;
     if (!target) {
       const parts = key.split('/');
       if (parts[2] === 'other' || !parts[3]) return false;
@@ -217,10 +275,12 @@
       kind = 'detail';
       if (location.hash === target) return false;
     }
-    if (!force && lastOpen.key === key && now() - lastOpen.at < REOPEN_GUARD_MS) { debug('réouverture ignorée de ' + key); return false; }
-    lastOpen = { key, at: now() };
+    // Garde anti-boucle par lien (épisode + source) : changer de source juste après avoir ouvert reste possible.
+    const guard = target || key;
+    if (!force && lastOpen.key === guard && now() - lastOpen.at < REOPEN_GUARD_MS) { debug('réouverture ignorée de ' + key); return false; }
+    lastOpen = { key: guard, at: now() };
     remoteOpenKey = key;
-    debug('ouverture demandée par un autre : ' + key + (kind === 'detail' ? ' (source privée : choix de la source)' : ''));
+    debug('ouverture demandée par un autre : ' + key + (kind === 'detail' ? ' (source privée : choix de la source)' : otherSource && sameVideo(location.hash, hash) ? ' (autre source)' : ''));
     if (inPlayer()) {
       // Changer de lien directement dans le lecteur fait arrêter la nouvelle vidéo par l'ancien
       // lecteur qui se ferme (écran blanc). On quitte d'abord le lecteur, puis on ouvre l'épisode.
@@ -274,35 +334,94 @@
     setTimeout(() => { line.style.opacity = '0'; setTimeout(() => line.remove(), 900); }, 12000);
   }
 
+  // Barre de saisie du chat (touche T), avec un bouton GIF : la recherche passe par l'appli (message gif-search → réponse gifs).
+  let gifPicker = null, gifSearchIn = null, gifGrid = null, gifStatus = null, gifReq = 0, gifTimer = 0;
   function openChatInput() {
     if (chatInputWrap && document.body.contains(chatInputWrap)) { chatInputEl.focus(); return; }
-    chatInputWrap = document.createElement('div');
-    chatInputWrap.style.cssText = 'position:fixed;left:20px;bottom:70px;z-index:2147483647;display:flex;flex-direction:column;gap:3px;font:13px "Segoe UI",sans-serif';
-    chatInputEl = document.createElement('input');
+    ensureStyle();
+    chatInputWrap = make('div');
+    chatInputWrap.id = 'wt-chatbar';
+    ['pointerdown', 'mousedown', 'click', 'dblclick'].forEach(t => chatInputWrap.addEventListener(t, e => e.stopPropagation()));
+    gifPicker = make('div', 'wt-gifs');
+    gifPicker.style.display = 'none';
+    const [sf, si] = input('search', '', T("Tendances : tape pour chercher, ou colle un lien Giphy puis Entrée"), v => { clearTimeout(gifTimer); gifTimer = setTimeout(() => searchGifs(v), 400); }, null);
+    gifSearchIn = si;
+    gifStatus = make('div', 'wt-hint');
+    gifGrid = make('div', 'wt-grid');
+    gifPicker.append(sf, gifStatus, gifGrid);
+    const bar = make('div', 'wt-bar');
+    chatInputEl = make('input');
     chatInputEl.maxLength = 300;
     chatInputEl.placeholder = T('Message (ou lien Giphy)…');
-    chatInputEl.style.cssText = 'width:380px;padding:8px 12px;border-radius:10px;border:1px solid #2f80ff;background:rgba(8,24,56,.95);color:#e8f0ff;outline:none;font:14px "Segoe UI",sans-serif';
-    const hint = document.createElement('div');
-    hint.textContent = T('Entrée pour envoyer · Échap pour fermer');
-    hint.style.cssText = 'color:#8ca0c8;text-shadow:0 1px 2px #000';
-    chatInputWrap.append(chatInputEl, hint);
+    chatInputEl.spellcheck = false;
+    const gifBtn = make('button', 'wt-gifbtn', 'GIF');
+    gifBtn.onclick = () => toggleGifs();
+    bar.append(withIcon(make('span', 'wt-bar-ic'), 'chat', null, 16), chatInputEl, gifBtn);
+    const hint = make('div', 'wt-hint', T('Entrée pour envoyer · Échap pour fermer'));
+    chatInputWrap.append(gifPicker, bar, hint);
     document.body.appendChild(chatInputWrap);
     chatInputEl.focus();
   }
 
+  function toggleGifs(show) {
+    if (!gifPicker) return;
+    show = show == null ? gifPicker.style.display === 'none' : show;
+    gifPicker.style.display = show ? '' : 'none';
+    chatInputWrap.querySelector('.wt-gifbtn').classList.toggle('on', show);
+    if (show) { gifSearchIn.focus(); if (!gifGrid.firstChild) searchGifs(gifSearchIn.value); }
+    else chatInputEl.focus();
+  }
+
+  function searchGifs(q) {
+    q = (q || '').trim();
+    gifStatus.textContent = q ? T('Recherche…') : T("Tendances : clique sur un GIF pour l'envoyer");
+    toNode({ type: 'gif-search', q, id: ++gifReq });
+  }
+
+  function showGifs(msg) {
+    if (!gifGrid || msg.id !== gifReq) return;
+    gifGrid.textContent = '';
+    if (msg.off) { gifStatus.textContent = T('Recherche de GIF pas encore activée. Colle un lien Giphy dans la barre ci-dessus puis Entrée.'); return; }
+    if (msg.error) { gifStatus.textContent = T('Recherche impossible pour le moment. Tu peux coller un lien Giphy puis Entrée.'); return; }
+    const list = (msg.results || []).filter(g => ALLOWED_GIF.test(g.gif) && ALLOWED_GIF.test(g.preview));
+    gifStatus.textContent = list.length ? (gifSearchIn.value.trim() ? T("Clique sur un GIF pour l'envoyer") : T("Tendances : clique sur un GIF pour l'envoyer")) : T('Aucun GIF trouvé.');
+    list.forEach(g => {
+      const img = make('img');
+      img.src = g.preview; img.referrerPolicy = 'no-referrer'; img.loading = 'lazy';
+      img.onclick = () => { toNode({ type: 'chat', text: '', gif: g.gif }); closeChatInput(); };
+      gifGrid.append(img);
+    });
+  }
+
   function closeChatInput() {
     if (chatInputWrap) chatInputWrap.remove();
-    chatInputWrap = chatInputEl = null;
+    chatInputWrap = chatInputEl = gifPicker = gifSearchIn = gifGrid = gifStatus = null;
+    clearTimeout(gifTimer);
   }
 
   // Clavier : T ouvre le chat ; pendant la saisie, les touches ne vont pas à Stremio (sinon espace = pause…).
-  const typingElsewhere = () => { const a = document.activeElement; return a && a !== chatInputEl && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable); };
+  const typingElsewhere = () => { const a = document.activeElement; return a && !(chatInputWrap && chatInputWrap.contains(a)) && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable); };
   ['keydown', 'keypress', 'keyup'].forEach(type => window.addEventListener(type, e => {
-    if (chatInputEl && document.activeElement === chatInputEl) {
+    // Champs du panneau Watch Together : les raccourcis de Stremio ne doivent pas réagir à la frappe.
+    if (panelEl && panelEl.contains(document.activeElement)) {
+      e.stopImmediatePropagation();
+      if (type === 'keydown' && e.key === 'Enter' && document.activeElement.wtEnter) { e.preventDefault(); document.activeElement.wtEnter(); }
+      if (type === 'keydown' && e.key === 'Escape') { panelOpen = false; renderPanel(); }
+      return;
+    }
+    if (chatInputWrap && chatInputWrap.contains(document.activeElement)) {
       e.stopImmediatePropagation();
       if (type !== 'keydown') return;
-      if (e.key === 'Enter') { const t = chatInputEl.value.trim(); if (t) toNode({ type: 'chat', text: t }); closeChatInput(); e.preventDefault(); }
-      else if (e.key === 'Escape') { closeChatInput(); e.preventDefault(); }
+      const inGifs = document.activeElement === gifSearchIn;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        // Dans la recherche GIF, Entrée n'envoie qu'un lien Giphy collé (l'appli le reconnaît) ; sinon on attend un clic.
+        const t = (inGifs ? gifSearchIn : chatInputEl).value.trim();
+        if (inGifs && !/^https?:\/\//i.test(t)) return;
+        if (t) toNode({ type: 'chat', text: t });
+        closeChatInput();
+      }
+      else if (e.key === 'Escape') { e.preventDefault(); if (inGifs) toggleGifs(false); else closeChatInput(); }
       return;
     }
     if (type === 'keydown' && (e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.altKey && !e.metaKey && !typingElsewhere() && W.inRoom) {
@@ -315,6 +434,7 @@
     if (msg.type === 'status') { W.inRoom = true; return setStatus(msg); }
     if (msg.type === 'toast') return toast(msg.text);
     if (msg.type === 'chat') return addChatLine(msg.from, msg.text, msg.gif, msg.mine);
+    if (msg.type === 'gifs') return showGifs(msg);
     if (msg.type === 'wait') {
       if (msg.mine) {
         // C'est nous qu'on attend : surtout ne pas se mettre en pause, sinon le chargement s'arrête.
@@ -368,8 +488,11 @@
     applyState(msg);
   };
 
-  window.addEventListener('hashchange', () =>
-    debug('page : ' + (inPlayer() ? videoKey(location.hash) : location.hash.split('/').slice(0, 2).join('/'))));
+  window.addEventListener('hashchange', () => {
+    debug('page : ' + (inPlayer() ? videoKey(location.hash) : location.hash.split('/').slice(0, 2).join('/')));
+    // Torrent connu dès l'ouverture : l'alerte de téléchargement lent marche même si la vidéo ne démarre jamais.
+    if (V5 && inPlayer()) reportTorrent('');
+  });
   let playerHooked = false, lastState = null;
   function hookPlayer() {
     if (playerHooked || V5) return;
@@ -384,8 +507,19 @@
     } catch (e) {}
   }
 
+  // Stremio Web : lecteur ouvert mais pas encore de vidéo. Le serveur analyse d'abord le début du fichier : tant qu'aucun
+  // morceau n'est arrivé du torrent (source sans peer joignable), Stremio Web attend sans limite, avec ou sans nous.
+  // Compté comme un chargement : sinon l'hôte n'attend pas et lit seul pendant que l'autre reste bloqué.
+  let noVideoSince = 0;
+  function webWaiting() {
+    const v = WEB && inPlayer() ? document.querySelector('video') : null;
+    if (!WEB || !inPlayer() || (v && (v.currentSrc || v.src))) { noVideoSince = 0; return false; }
+    if (!noVideoSince) noVideoSince = now();
+    return true;
+  }
   function isBuffering() {
     if (!inPlayer()) return false;
+    if (webWaiting()) return now() - noVideoSince > BUFFER_REPORT_MS;
     if (loading) return true;
     const d = device();
     return !!d && !d.paused && (d.state === 1 || d.state === 2);
@@ -452,7 +586,7 @@
     reportBuffering();
     checkWatched();
     updateBackdrop();
-    if (!inPlayer()) { loading = false; return; }
+    if (!inPlayer()) { loading = false; loadedKey = null; return; }
     if (!loading) return;
     const d = device();
     if (!isReady(d)) return;
@@ -533,4 +667,323 @@
     setTimeout(() => t.remove(), duration);
     wake();
   }
+
+  // ---- Panneau Watch Together : héberger, rejoindre et inviter sans quitter Stremio ----
+  // L'appli envoie son état par W.panel(état) ; les clics repartent par toNode({ type: 'panel', action }).
+  // Sans appli à l'écoute (ancienne version), W.panel n'est jamais appelé et rien n'apparaît.
+  // Habillé aux couleurs de Stremio (ses variables CSS, avec des valeurs de secours pour les anciennes versions) et en verre dépoli.
+  let panelState = null, panelOpen = false, fab, panelEl;
+  let nameVal = null, codeVal = '', localVal = false;
+  const ICONS = {
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
+    play: '<path d="M6 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L7.5 3.64A1 1 0 0 0 6 4.5z" fill="currentColor"/>',
+    login: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="m10 17 5-5-5-5"/><path d="M15 12H3"/>',
+    wifi: '<path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><path d="M12 20h.01"/>',
+    link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+    copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    crown: '<path d="m2 6 4.5 4L12 4l5.5 6L22 6l-2 13H4z"/>',
+    chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    leave: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+    alert: '<circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/>'
+  };
+  const icon = (name, size) => '<svg width="' + (size || 18) + '" height="' + (size || 18) + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + ICONS[name] + '</svg>';
+  const CSS = `
+#wt-fab, #wt-panel, #wt-chatbar { --wt-accent: var(--primary-accent-color, #7b5bf5); --wt-green: var(--secondary-accent-color, #22b365); --wt-red: var(--danger-accent-color, #dc2626);
+  --wt-fg: var(--primary-foreground-color, rgba(255,255,255,.9)); --wt-muted: rgba(255,255,255,.55); --wt-glass: rgba(15,13,32,.72);
+  font-family: PlusJakartaSans, "Segoe UI", system-ui, sans-serif; color: var(--wt-fg); box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+#wt-panel *, #wt-fab *, #wt-chatbar * { box-sizing: border-box; font-family: inherit; }
+#wt-fab { position: fixed; z-index: 2147483647; display: flex; align-items: center; border: 1px solid rgba(255,255,255,.1); border-radius: 999px; cursor: pointer;
+  background: var(--wt-glass); backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: 0 8px 28px rgba(0,0,0,.45); font-weight: 700; font-size: 14px; color: var(--wt-fg); transition: opacity .2s, box-shadow .2s, transform .2s, background .2s; }
+#wt-fab:hover, #wt-fab.open { box-shadow: 0 8px 28px rgba(0,0,0,.45), 0 0 18px rgba(123,91,245,.45); border-color: rgba(123,91,245,.6); }
+#wt-fab:active { transform: scale(.97); }
+#wt-fab .wt-fab-ic { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--wt-accent); color: #fff; }
+#wt-fab .wt-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--wt-green); box-shadow: 0 0 8px var(--wt-green); }
+#wt-fab .wt-count { display: flex; align-items: center; color: var(--wt-muted); font-weight: 600; }
+#wt-fab.small { font-size: 12px; padding: 4px 12px 4px 4px; }
+#wt-fab.small .wt-fab-ic { width: 24px; height: 24px; }
+#wt-panel { position: fixed; z-index: 2147483647; width: 360px; max-height: calc(100vh - 150px); overflow: auto; padding: 20px;
+  background: var(--wt-glass); backdrop-filter: blur(28px) saturate(160%); -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(255,255,255,.09); border-radius: 20px; box-shadow: 0 24px 64px rgba(0,0,0,.55), 0 0 15px rgba(123,91,245,.2);
+  font-size: 14px; line-height: 1.4; animation: wt-in .18s ease-out; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
+@keyframes wt-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+#wt-panel .wt-head { display: flex; align-items: center; }
+#wt-panel .wt-logo { display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 11px; color: #fff;
+  background: linear-gradient(135deg, var(--wt-accent), #5a3fd8); box-shadow: 0 0 15px rgba(123,91,245,.4); flex: none; }
+#wt-panel .wt-title { flex: 1; font-weight: 700; font-size: 17px; }
+#wt-panel .wt-sub { display: block; font-weight: 500; font-size: 12px; color: var(--wt-muted); }
+#wt-panel .wt-ib { display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; border: 0; border-radius: 50%; padding: 0;
+  background: transparent; color: var(--wt-muted); cursor: pointer; transition: background .15s, color .15s; }
+#wt-panel .wt-ib:hover { background: rgba(255,255,255,.1); color: #fff; }
+#wt-panel .wt-sec { margin-top: 14px; padding: 16px; border-radius: 14px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.05); display: flex; flex-direction: column; }
+#wt-panel .wt-label { display: flex; align-items: center; font-weight: 700; font-size: 13px; color: var(--wt-fg); }
+#wt-panel .wt-label svg { color: var(--wt-accent); }
+#wt-panel .wt-hint { color: var(--wt-muted); font-size: 12px; }
+#wt-panel .wt-code { text-align: center; font-size: 22px; font-weight: 800; letter-spacing: .12em; padding: 6px 0; color: #fff; user-select: all; }
+#wt-panel .wt-btn { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 44px; padding: 0 16px; border-radius: 999px; cursor: pointer;
+  font-weight: 700; font-size: 14px; color: #fff; border: 1px solid transparent; background: rgba(255,255,255,.08); transition: background .15s, box-shadow .15s, transform .1s, opacity .15s; }
+#wt-panel .wt-btn:hover { background: rgba(255,255,255,.14); }
+#wt-panel .wt-btn:active { transform: scale(.98); }
+#wt-panel .wt-btn.primary { background: var(--wt-accent); }
+#wt-panel .wt-btn.primary:hover { box-shadow: 0 0 15px rgba(123,91,245,.55); background: #8a6dff; }
+#wt-panel .wt-btn.danger { background: transparent; border-color: rgba(220,38,38,.45); color: #ff8a8a; }
+#wt-panel .wt-btn.danger:hover { background: rgba(220,38,38,.15); }
+#wt-panel .wt-btn.done { background: var(--wt-green); }
+#wt-panel .wt-btn:disabled { opacity: .45; cursor: default; box-shadow: none; }
+#wt-panel .wt-field { display: flex; align-items: center; padding: 0 12px; border-radius: 12px; background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.08); color: var(--wt-muted); transition: border-color .15s, background .15s; }
+#wt-panel .wt-field:focus-within { border-color: var(--wt-accent); background: rgba(123,91,245,.08); color: var(--wt-accent); }
+#wt-panel .wt-field input { flex: 1; min-width: 0; height: 42px; border: 0; outline: 0; background: transparent; color: var(--wt-fg); font-size: 14px; padding: 0; }
+#wt-panel .wt-field input::placeholder { color: rgba(255,255,255,.35); }
+#wt-panel .wt-row { display: flex; align-items: center; cursor: pointer; font-weight: 600; font-size: 13px; }
+#wt-panel .wt-row.off { cursor: default; }
+#wt-panel .wt-row .wt-row-ic { color: var(--wt-muted); display: flex; }
+#wt-panel .wt-row span.wt-grow { flex: 1; }
+#wt-panel input.wt-sw { appearance: none; -webkit-appearance: none; position: relative; flex: none; width: 38px; height: 22px; margin: 0; opacity: 1; border-radius: 999px;
+  background: rgba(255,255,255,.18); cursor: inherit; transition: background .2s; }
+#wt-panel input.wt-sw::before { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+#wt-panel input.wt-sw:checked { background: var(--wt-accent); }
+#wt-panel input.wt-sw:checked::before { transform: translateX(16px); }
+#wt-panel input.wt-sw:disabled { opacity: .6; }
+#wt-panel .wt-status { display: flex; align-items: center; margin-top: 14px; padding: 10px 12px; border-radius: 12px; font-weight: 600; font-size: 13px; background: rgba(34,179,101,.12); color: #6fe3a2; }
+#wt-panel .wt-status.wait { background: rgba(255,165,0,.12); color: #ffc46b; }
+#wt-panel .wt-status .wt-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+#wt-panel .wt-member { display: flex; align-items: center; font-weight: 600; }
+#wt-panel .wt-av { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; font-size: 13px; font-weight: 800; color: #fff; flex: none; }
+#wt-panel .wt-member small { color: var(--wt-muted); font-weight: 500; }
+#wt-panel .wt-msg { display: flex; align-items: flex-start; margin-top: 12px; font-size: 13px; color: var(--wt-muted); }
+#wt-panel .wt-msg.err { color: #ff8a8a; }
+#wt-panel .wt-msg svg { flex: none; margin-top: 1px; }
+#wt-panel .wt-spin { width: 14px; height: 14px; flex: none; margin-top: 2px; border-radius: 50%; border: 2px solid rgba(255,255,255,.2); border-top-color: var(--wt-accent); animation: wt-spin .8s linear infinite; }
+@keyframes wt-spin { to { transform: rotate(360deg); } }
+#wt-panel .wt-foot { display: flex; align-items: center; margin: 12px 2px; color: var(--wt-muted); font-size: 12px; }
+#wt-panel kbd { all: unset; display: inline-block; margin: 0 2px; padding: 0 7px; line-height: 20px; font-size: 12px; font-weight: 700; color: var(--wt-fg); background: rgba(255,255,255,.12); border-radius: 6px; }
+/* Espacements en marges : le navigateur intégré à Stremio est trop ancien pour « gap » en flexbox. */
+#wt-fab > * + *, #wt-panel .wt-head > * + *, #wt-panel .wt-btn > * + *, #wt-panel .wt-status > * + *, #wt-panel .wt-msg > * + * { margin-left: 10px; }
+#wt-panel .wt-label > * + *, #wt-panel .wt-member > * + *, #wt-panel .wt-row > * + * { margin-left: 10px; }
+#wt-panel .wt-field > * + * { margin-left: 10px; }
+#wt-panel .wt-head > .wt-ib { margin-left: 4px; }
+#wt-fab .wt-count > * + * { margin-left: 4px; }
+#wt-panel .wt-foot > svg { margin-right: 8px; }
+#wt-panel .wt-sec > * + * { margin-top: 12px; }
+#wt-panel .wt-sec > .wt-hint { margin-top: 8px; }
+#wt-chatbar { position: fixed; left: 20px; bottom: 70px; z-index: 2147483647; width: 440px; max-width: calc(100vw - 40px); }
+#wt-chatbar .wt-bar { display: flex; align-items: center; height: 48px; padding: 0 6px 0 14px; border-radius: 999px; background: var(--wt-glass);
+  backdrop-filter: blur(20px) saturate(160%); -webkit-backdrop-filter: blur(20px) saturate(160%); border: 1px solid rgba(123,91,245,.6);
+  box-shadow: 0 8px 28px rgba(0,0,0,.45), 0 0 15px rgba(123,91,245,.3); }
+#wt-chatbar .wt-bar-ic { display: flex; color: var(--wt-accent); }
+#wt-chatbar .wt-bar input { flex: 1; min-width: 0; height: 46px; margin: 0 10px; border: 0; outline: 0; padding: 0; background: transparent; color: var(--wt-fg); font-size: 15px; }
+#wt-chatbar input::placeholder { color: rgba(255,255,255,.4); }
+#wt-chatbar .wt-gifbtn { flex: none; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.15); background: rgba(255,255,255,.08);
+  color: var(--wt-fg); font-weight: 800; font-size: 12px; letter-spacing: .06em; cursor: pointer; transition: background .15s, box-shadow .15s; }
+#wt-chatbar .wt-gifbtn:hover { background: rgba(255,255,255,.16); }
+#wt-chatbar .wt-gifbtn.on { background: var(--wt-accent); border-color: transparent; box-shadow: 0 0 12px rgba(123,91,245,.6); }
+#wt-chatbar > .wt-hint { margin: 6px 0 0 16px; color: rgba(255,255,255,.6); font-size: 12px; text-shadow: 0 1px 2px #000; }
+#wt-chatbar .wt-gifs { margin-bottom: 10px; padding: 14px; border-radius: 18px; background: var(--wt-glass); backdrop-filter: blur(28px) saturate(160%); -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(255,255,255,.09); box-shadow: 0 24px 64px rgba(0,0,0,.55); animation: wt-in .18s ease-out; }
+#wt-chatbar .wt-field { display: flex; align-items: center; padding: 0 12px; border-radius: 12px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); color: var(--wt-muted); }
+#wt-chatbar .wt-field:focus-within { border-color: var(--wt-accent); color: var(--wt-accent); }
+#wt-chatbar .wt-field > * + * { margin-left: 10px; }
+#wt-chatbar .wt-field input { flex: 1; min-width: 0; height: 40px; border: 0; outline: 0; padding: 0; background: transparent; color: var(--wt-fg); font-size: 14px; }
+#wt-chatbar .wt-gifs > .wt-hint { margin: 10px 2px; color: var(--wt-muted); font-size: 12px; }
+#wt-chatbar .wt-grid { display: flex; flex-wrap: wrap; max-height: 300px; overflow: auto; margin: -3px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
+#wt-chatbar .wt-grid img { width: calc(33.333% - 6px); height: 96px; margin: 3px; object-fit: cover; border-radius: 10px; cursor: pointer; background: rgba(255,255,255,.06); transition: transform .12s, box-shadow .12s; }
+#wt-chatbar .wt-grid img:hover { transform: scale(1.04); box-shadow: 0 0 0 2px var(--wt-accent); }`;
+  function ensureStyle() {
+    if (document.getElementById('wt-panel-style')) return;
+    const st = document.createElement('style');
+    st.id = 'wt-panel-style';
+    st.textContent = CSS;
+    (document.head || document.documentElement).appendChild(st);
+  }
+  const make = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const withIcon = (el, name, text, size) => { el.innerHTML = icon(name, size); if (text != null) el.append(make('span', null, text)); return el; };
+  const button = (ic, text, kind, onClick) => {
+    const b = withIcon(make('button', 'wt-btn' + (kind ? ' ' + kind : '')), ic, text, 17);
+    b.onclick = e => { e.stopPropagation(); onClick(b); };
+    return b;
+  };
+  const section = (ic, title) => {
+    const c = make('div', 'wt-sec');
+    if (title) c.append(withIcon(make('div', 'wt-label'), ic, title, 16));
+    return c;
+  };
+  const input = (ic, value, placeholder, onInput, onEnter) => {
+    const f = make('label', 'wt-field');
+    f.innerHTML = icon(ic, 16);
+    const i = make('input');
+    i.value = value || ''; i.placeholder = placeholder || ''; i.spellcheck = false;
+    i.oninput = () => onInput(i.value);
+    i.wtEnter = onEnter;
+    f.append(i);
+    return [f, i];
+  };
+  const toggle = (ic, text, checked, enabled, onChange) => {
+    const row = make('label', 'wt-row' + (enabled ? '' : ' off'));
+    row.append(withIcon(make('span', 'wt-row-ic'), ic, null, 16), make('span', 'wt-grow', text));
+    const sw = make('input', 'wt-sw');
+    sw.type = 'checkbox'; sw.checked = !!checked; sw.disabled = !enabled;
+    sw.onchange = () => onChange(sw.checked);
+    row.append(sw);
+    return row;
+  };
+  const flash = (b, text) => {
+    const old = b.innerHTML;
+    withIcon(b, 'check', text, 17); b.classList.add('done');
+    setTimeout(() => { b.innerHTML = old; b.classList.remove('done'); }, 1500);
+  };
+  const AV = ['#7b5bf5', '#22b365', '#e8569b', '#f59e0b', '#3b82f6', '#14b8a6', '#ef4444', '#a855f7'];
+  const avatar = name => {
+    let h = 0; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) | 0;
+    const a = make('span', 'wt-av', (name.trim()[0] || '?').toUpperCase());
+    a.style.background = AV[Math.abs(h) % AV.length];
+    return a;
+  };
+  const send = (action, extra) => toNode(Object.assign({ type: 'panel', action }, extra || {}));
+
+  function ensureFab() {
+    ensureStyle();
+    if (fab && document.body.contains(fab)) return;
+    fab = make('button');
+    fab.id = 'wt-fab';
+    fab.onclick = e => { e.stopPropagation(); panelOpen = !panelOpen; renderPanel(); };
+    document.body.appendChild(fab);
+    placeFab();
+  }
+  // Hors lecture : en bas à droite. Pendant un film : petit et discret en haut à droite, pour ne pas gêner les commandes.
+  function placeFab() {
+    if (!fab) return;
+    const player = inPlayer(), s = panelState || {};
+    fab.className = (player ? 'small' : '') + (panelOpen ? ' open' : '');
+    fab.innerHTML = '<span class="wt-fab-ic">' + icon('users', player ? 14 : 16) + '</span>';
+    if (s.mode === 'room') {
+      fab.append(make('span', 'wt-dot'), make('span', null, s.room));
+      fab.append(withIcon(make('span', 'wt-count'), 'user', String((s.members || []).length), 13));
+    } else fab.append(make('span', null, 'Watch Together'));
+    fab.style.cssText = player ? 'top:64px;right:16px;opacity:' + (panelOpen ? 1 : .55) : 'bottom:24px;right:24px;padding:6px 18px 6px 6px';
+    fab.onmouseenter = () => { fab.style.opacity = 1; };
+    fab.onmouseleave = () => { if (inPlayer() && !panelOpen) fab.style.opacity = .55; };
+  }
+  window.addEventListener('hashchange', () => { placeFab(); if (panelOpen) renderPanel(); });
+
+  function renderPanel() {
+    ensureStyle();
+    placeFab();
+    if (!panelEl || !document.body.contains(panelEl)) {
+      panelEl = make('div');
+      panelEl.id = 'wt-panel';
+      panelEl.onclick = e => e.stopPropagation();
+      document.body.appendChild(panelEl);
+    }
+    const player = inPlayer();
+    const wasHidden = panelEl.style.display === 'none';
+    panelEl.style.cssText = (player ? 'top:108px;right:16px;' : 'bottom:84px;right:24px;') + (panelOpen && panelState ? '' : 'display:none');
+    if (!panelOpen || !panelState) return;
+    // L'animation d'ouverture ne rejoue qu'à l'ouverture, pas à chaque mise à jour.
+    panelEl.style.animation = wasHidden || !panelEl.firstChild ? '' : 'none';
+    // Garder le curseur dans le champ en cours de saisie quand on redessine.
+    const focused = document.activeElement && panelEl.contains(document.activeElement) ? document.activeElement.dataset.key : null;
+    panelEl.textContent = '';
+    const s = panelState;
+    if (nameVal == null) nameVal = s.name || '';
+    if (s.invite && !codeVal) codeVal = s.invite;
+
+    const head = make('div', 'wt-head');
+    const logo = make('div', 'wt-logo'); logo.innerHTML = icon('users', 18);
+    const title = make('div', 'wt-title', 'Watch Together');
+    title.append(make('span', 'wt-sub', s.mode === 'room' ? T('Participants') + ' · ' + (s.members || []).length : 'StremioWT'));
+    const app = make('button', 'wt-ib'); app.innerHTML = icon('external', 17); app.title = 'StremioWT';
+    app.onclick = e => { e.stopPropagation(); send('window'); };
+    const close = make('button', 'wt-ib'); close.innerHTML = icon('x', 18);
+    close.onclick = e => { e.stopPropagation(); panelOpen = false; renderPanel(); };
+    head.append(logo, title, app, close);
+    panelEl.append(head);
+
+    if (s.mode === 'room') {
+      const st = make('div', 'wt-status' + (s.connected ? '' : ' wait'));
+      st.append(make('span', 'wt-dot'), make('span', null, T(!s.connected ? 'Salon {0} · connexion…' : s.host ? 'Salon {0} · tu héberges' : 'Salon {0} · connecté', s.room)));
+      panelEl.append(st);
+      if (s.host && s.code) {
+        const inv = section('link', T('Inviter des amis'));
+        // Code court (« K7MQ2X9F ») : assez court pour être lu à voix haute ou recopié.
+        if (/^[0-9A-Z]{8}$/.test(s.code)) inv.append(make('div', 'wt-code', s.code));
+        inv.append(button('link', T("Copier le lien d'invitation"), 'primary', b => { send('copy-link'); flash(b, T('Lien copié ✓').replace(' ✓', '')); }));
+        inv.append(button('copy', T('Copier le code'), '', b => { send('copy-code'); flash(b, T('Code copié ✓').replace(' ✓', '')); }));
+        inv.append(make('div', 'wt-hint', T("Le lien fait aussi télécharger StremioWT aux amis qui ne l'ont pas.")));
+        panelEl.append(inv);
+      }
+      const who = section('users', T('Participants'));
+      (s.members || []).forEach(m => {
+        const at = m.indexOf(' · '), name = (at < 0 ? m : m.slice(0, at)).trim();
+        const row = make('div', 'wt-member');
+        row.append(avatar(name), make('span', null, name));
+        if (at >= 0) row.append(make('small', null, m.slice(at + 3)));
+        who.append(row);
+      });
+      panelEl.append(who);
+      const adm = section(null, null);
+      // adminLocked : édition Linux/Mac (bêta), où l'hôte garde toujours la main ; l'appli fournit alors son explication.
+      adm.append(toggle('crown', T('Hébergeur admin'), s.admin, s.host && !s.adminLocked, on => send('admin', { on })));
+      adm.append(make('div', 'wt-hint', s.adminHint ? s.adminHint : s.host
+        ? (s.admin ? T('Activé : toi seul peux mettre pause, avancer ou changer d\'épisode. Les autres suivent.') : T('Désactivé : tout le monde peut mettre pause, avancer ou changer d\'épisode.'))
+        : (s.admin ? T("Activé par l'hôte : seul l'hôte contrôle la lecture.") : T('Désactivé : tout le monde peut mettre pause, avancer ou changer d\'épisode.'))));
+      panelEl.append(adm);
+      const foot = make('div', 'wt-foot');
+      foot.innerHTML = icon('chat', 15);
+      const tip = T('Touche T dans Stremio'), k = tip.search(/\bT\b/);
+      if (k >= 0) foot.append(tip.slice(0, k), make('kbd', null, 'T'), tip.slice(k + 1)); else foot.append(tip);
+      panelEl.append(foot);
+      panelEl.append(button('leave', T('Quitter'), 'danger', () => send('leave')));
+    } else {
+      const busy = s.mode === 'busy';
+      const me = section('user', T('Ton pseudo'));
+      const [nameF, nameIn] = input('user', nameVal, '', v => { nameVal = v; }, null);
+      nameIn.dataset.key = 'name'; nameIn.maxLength = 32; nameIn.disabled = busy;
+      me.append(nameF);
+      panelEl.append(me);
+
+      const host = section('play', T('Héberger un salon'));
+      const hb = button('play', T('Héberger un salon'), 'primary', () => send('host', { name: nameVal, local: localVal }));
+      hb.disabled = busy;
+      host.append(hb, toggle('wifi', T('Option : amis sur le même wifi seulement (sans Internet)'), localVal, !busy, on => { localVal = on; }));
+      panelEl.append(host);
+
+      const join = section('login', T('Rejoindre un salon'));
+      const doJoin = () => { if (codeVal.trim()) send('join', { name: nameVal, code: codeVal.trim() }); };
+      const [codeF, codeIn] = input('link', codeVal, T("Colle ou tape le code reçu (8 caractères ou WT-…)"), v => { codeVal = v; }, doJoin);
+      codeIn.dataset.key = 'code'; codeIn.disabled = busy;
+      nameIn.wtEnter = doJoin;
+      const jb = button('login', T('Rejoindre'), '', doJoin);
+      jb.disabled = busy;
+      join.append(codeF, jb);
+      panelEl.append(join);
+
+      if (s.message) {
+        const m = make('div', 'wt-msg' + (s.error ? ' err' : ''));
+        if (busy) m.append(make('span', 'wt-spin')); else if (s.error) m.innerHTML = icon('alert', 16);
+        m.append(make('span', null, s.message));
+        panelEl.append(m);
+      }
+    }
+    if (focused) { const f = panelEl.querySelector('[data-key="' + focused + '"]'); if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); } }
+  }
+
+  W.panel = s => {
+    const first = !panelState;
+    panelState = s;
+    if (s.open && first) panelOpen = true;
+    if (s.mode === 'room' && first) panelOpen = false;
+    ensureFab();
+    renderPanel();
+  };
+  // Au chargement (et après chaque rechargement de l'interface), on redemande l'état à l'appli.
+  send('ready');
+  // Page ouverte (ou rechargée) directement sur le lecteur : le torrent est signalé tout de suite.
+  if (V5 && inPlayer()) reportTorrent('');
+  setInterval(() => { if (panelState) ensureFab(); }, 2000);
 })();

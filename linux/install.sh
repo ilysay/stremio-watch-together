@@ -123,14 +123,21 @@ fi
 # --- 4. StremioWT ---------------------------------------------------------------------------------
 step "4. Stremio Watch Together"
 mkdir -p "$BIN" "$DATA"
-if [ -f "$HERE/StremioWT-linux-x64" ]; then
-  cp "$HERE/StremioWT-linux-x64" "$BIN/stremiowt"
-  ok "Copied from this folder"
+# Le navigateur renomme parfois le fichier téléchargé (« StremioWT-linux-x64 (1) ») : on le reconnaît quand même.
+SRC=""
+for f in "$HERE/StremioWT-linux-x64" "$HERE"/StremioWT-linux-x64*; do [ -f "$f" ] && [ -z "$SRC" ] && SRC="$f"; done
+# Copie à côté puis remplacement : marche même si StremioWT est ouvert (une copie directe échoue
+# alors avec « Text file busy » et l'ancienne version resterait en place).
+if [ -n "$SRC" ]; then
+  { cp "$SRC" "$BIN/stremiowt.new" && mv -f "$BIN/stremiowt.new" "$BIN/stremiowt"; } || fail "Couldn't copy StremioWT to $BIN."
+  ok "Copied from this folder ($(basename "$SRC"))"
 else
-  todo "Downloading the latest StremioWT"
-  curl -fsSL -o "$BIN/stremiowt" "$RELEASE/StremioWT-linux-x64" || fail "Couldn't download StremioWT: put StremioWT-linux-x64 next to this script."
+  todo "No StremioWT-linux-x64 next to this script: downloading the latest release"
+  { curl -fsSL -o "$BIN/stremiowt.new" "$RELEASE/StremioWT-linux-x64" && mv -f "$BIN/stremiowt.new" "$BIN/stremiowt"; } \
+    || fail "Couldn't download StremioWT: put StremioWT-linux-x64 next to this script."
 fi
 chmod +x "$BIN/stremiowt"
+pgrep -f "$BIN/stremiowt" > /dev/null 2>&1 && todo "StremioWT is open: close it and open it again to use this version"
 curl -fsSL -o "$DATA/icon.png" https://raw.githubusercontent.com/ilysay/stremio-watch-together/main/docs/logo.png 2>/dev/null || true
 # Lanceur : démarre le serveur s'il ne tourne pas déjà (sans systemd), puis StremioWT.
 cat > "$BIN/stremiowt-launch" <<LAUNCH

@@ -41,7 +41,7 @@ namespace StremioWT
             };
             Controls.Add(stats);
             Controls.Add(Dialogs.Text(L.T("Compte combien de personnes utilisent StremioWT.\nAucun pseudo, titre, lien ni adresse IP n'est enregistré."), Theme.Small, Theme.Muted, 20, 138, 360, 56));
-            var report = new FlatButton("🐞  " + L.T("Signaler un bug"), primary: false) { Location = new Point(20, 204), Size = new Size(360, 38) };
+            var report = new FlatButton(L.T("Signaler un bug"), primary: false, Glyph.Bug) { Location = new Point(20, 204), Size = new Size(360, 38) };
             report.Click += (s, e) => new ReportForm().ShowDialog(this);
             Controls.Add(report);
         }

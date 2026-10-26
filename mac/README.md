@@ -57,9 +57,9 @@ Keep the app open during the movie (you can minimize it). Mac, Windows and Linux
 | Feature | Windows | Mac (test) |
 |---|:---:|:---:|
 | Rooms, sync, chat | ✅ | ✅ |
-| Opening the room by clicking the invite link | ✅ | copy the code instead |
+| Opening the room by clicking the invite link | ✅ | copy or type the code instead |
 | One-click updates | ✅ | opens the download page |
-| Animated GIFs in the chat | ✅ | first frame only |
+| Animated GIFs in the chat | ✅ | ✅ |
 | My diary + Letterboxd export | ✅ | should work, not tested yet |
 | Safari or Firefox | n/a | not yet (Chrome, Edge or Brave) |
 

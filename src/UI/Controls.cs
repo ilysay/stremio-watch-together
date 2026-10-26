@@ -1,35 +1,49 @@
 namespace StremioWT
 {
-    // Carte arrondie avec un titre (remplace les GroupBox, impossibles à thémer).
+    // Carte arrondie avec un titre et son icône (remplace les GroupBox, impossibles à thémer).
     class Card : Panel
     {
-        public string Title;
-        public Card(string title) { Title = title; DoubleBuffered = true; BackColor = Theme.Background; Padding = new Padding(16, 40, 16, 14); }
+        public string Title, Icon;
+        public Card(string title, string icon = null)
+        {
+            Title = title; Icon = icon; DoubleBuffered = true; Padding = new Padding(16, 40, 16, 14);
+            // Coins transparents et remplissage translucide : le fond de la fenêtre (et son halo) se voit autour et à travers.
+            SetStyle(ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+        }
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var r = new Rectangle(0, 0, Width - 1, Height - 1);
-            using (var path = Theme.Rounded(r, 12))
-            using (var fill = new SolidBrush(Theme.Card))
-            using (var pen = new Pen(Theme.CardBorder))
+            using (var path = Theme.Rounded(r, 16))
+            using (var fill = new SolidBrush(Theme.CardGlass))
+            using (var pen = new Pen(Color.FromArgb(34, 255, 255, 255)))
             {
                 g.FillPath(fill, path);
                 g.DrawPath(pen, path);
             }
-            if (!string.IsNullOrEmpty(Title))
-                TextRenderer.DrawText(g, Title, Theme.Section, new Point(16, 12), Theme.Text);
+            if (string.IsNullOrEmpty(Title)) return;
+            int x = 16;
+            if (Icon != null && Theme.IconFont(11f) != null)
+            {
+                Theme.DrawIcon(g, Icon, new Rectangle(14, 10, 22, 24), Theme.Accent, 11f);
+                x = 40;
+            }
+            TextRenderer.DrawText(g, Title, Theme.Section, new Point(x, 12), Theme.Text);
         }
     }
 
+    // Bouton en pilule, comme dans Stremio : violet plein (principal), gris discret (secondaire) ou contour rouge (Danger).
     class FlatButton : Control
     {
-        public bool Primary;
+        public bool Primary, Danger;
         public Image Picture;
+        public string Icon;
         bool hover, down;
-        public FlatButton(string text, bool primary)
+        public FlatButton(string text, bool primary, string icon = null)
         {
-            Text = text; Primary = primary;
+            Text = text; Primary = primary; Icon = icon;
             SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
             BackColor = Color.Transparent;
             Cursor = Cursors.Hand;
@@ -47,21 +61,26 @@ namespace StremioWT
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var r = new Rectangle(0, 0, Width - 1, Height - 1);
-            var accent = !Enabled ? Theme.CardBorder : (hover && !down ? Theme.AccentHover : Theme.Accent);
-            using (var path = Theme.Rounded(r, 8))
+            bool lit = hover && !down && Enabled;
+            Color fill, fore;
+            if (Danger) { fill = lit ? Color.FromArgb(50, Theme.Danger) : Color.Transparent; fore = Enabled ? Color.FromArgb(255, 138, 138) : Theme.Muted; }
+            else if (Primary) { fill = !Enabled ? Color.FromArgb(62, 52, 104) : lit ? Theme.AccentHover : Theme.Accent; fore = Enabled ? Color.White : Color.FromArgb(170, 160, 210); }
+            else { fill = lit ? Theme.InputHover : Theme.Input; fore = Enabled ? Theme.Text : Theme.Muted; }
+            using (var path = Theme.Rounded(r, Height / 2))
             {
-                if (Primary) using (var b = new SolidBrush(accent)) g.FillPath(b, path);
-                else using (var b = new SolidBrush(hover ? Color.FromArgb(30, accent) : Theme.Input)) g.FillPath(b, path);
-                using (var pen = new Pen(accent, 1.4f)) g.DrawPath(pen, path);
+                if (fill.A > 0) using (var b = new SolidBrush(fill)) g.FillPath(b, path);
+                if (Danger) using (var pen = new Pen(Color.FromArgb(120, Theme.Danger), 1.2f)) g.DrawPath(pen, path);
             }
-            var fore = Primary ? Color.White : (Enabled ? Theme.Text : Theme.Muted);
-            if (Picture != null)
+            int textWidth = string.IsNullOrEmpty(Text) ? 0 : TextRenderer.MeasureText(g, Text, Font, Size.Empty, TextFormatFlags.NoPadding).Width;
+            if (Picture != null || (Icon != null && Theme.IconFont(12f) != null))
             {
-                int icon = Height - 12, gap = 8, textWidth = TextRenderer.MeasureText(Text, Font).Width;
+                int icon = Picture != null ? Height - 14 : 18, gap = textWidth > 0 ? 8 : 0;
                 int x = (Width - icon - gap - textWidth) / 2;
-                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                g.DrawImage(Picture, new Rectangle(x, (Height - icon) / 2, icon, icon));
-                TextRenderer.DrawText(g, Text, Font, new Rectangle(x + icon + gap, 0, textWidth + 4, Height), fore, TextFormatFlags.Left | TextFormatFlags.VerticalCenter);
+                var box = new Rectangle(x, (Height - icon) / 2, icon, icon);
+                if (Picture != null) { g.InterpolationMode = InterpolationMode.HighQualityBicubic; g.DrawImage(Picture, box); }
+                else Theme.DrawIcon(g, Icon, new Rectangle(x - 2, 0, icon + 4, Height), fore, 11.5f);
+                if (textWidth > 0)
+                    TextRenderer.DrawText(g, Text, Font, new Rectangle(x + icon + gap, 0, textWidth + 6, Height), fore, TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
                 return;
             }
             TextRenderer.DrawText(g, Text, Font, r, fore, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
@@ -72,6 +91,7 @@ namespace StremioWT
     class ToggleSwitch : Control
     {
         bool isChecked;
+        public string Icon;
         public event EventHandler CheckedChanged;
         public bool Checked
         {
@@ -93,28 +113,33 @@ namespace StremioWT
             var g = e.Graphics;
             g.Clear(BackColor);
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            var track = new Rectangle(0, (Height - 20) / 2, 38, 20);
-            using (var path = Theme.Rounded(track, 10))
-            using (var b = new SolidBrush(isChecked ? Theme.Accent : Theme.Input))
-            using (var pen = new Pen(isChecked ? Theme.Accent : Theme.CardBorder))
-            {
+            var track = new Rectangle(0, (Height - 22) / 2, 40, 22);
+            var on = isChecked ? (Enabled ? Theme.Accent : Color.FromArgb(80, 66, 140)) : Color.FromArgb(58, 55, 76);
+            using (var path = Theme.Rounded(track, 11))
+            using (var b = new SolidBrush(on))
                 g.FillPath(b, path);
-                g.DrawPath(pen, path);
+            int knob = 16, x = isChecked ? track.Right - knob - 3 : track.X + 3;
+            using (var b = new SolidBrush(Enabled ? Color.White : Color.FromArgb(190, 190, 200))) g.FillEllipse(b, x, track.Y + 3, knob, knob);
+            int left = 52;
+            if (Icon != null && Theme.IconFont(11f) != null)
+            {
+                Theme.DrawIcon(g, Icon, new Rectangle(left - 2, 0, 22, Height), Theme.Muted, 11f);
+                left += 26;
             }
-            int knob = 14, x = isChecked ? track.Right - knob - 3 : track.X + 3;
-            using (var b = new SolidBrush(isChecked ? Color.White : Theme.Muted)) g.FillEllipse(b, x, track.Y + 3, knob, knob);
             var fore = Enabled ? ForeColor : Theme.Muted;
-            TextRenderer.DrawText(g, Text, Font, new Rectangle(48, 0, Width - 48, Height), fore, TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
+            TextRenderer.DrawText(g, Text, Font, new Rectangle(left, 0, Width - left, Height), fore, TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.WordBreak);
         }
     }
 
-    // Zone de saisie sombre avec bordure arrondie (le TextBox Windows ne se colore pas bien seul).
+    // Zone de saisie sombre et arrondie, avec une icône à gauche (le TextBox Windows ne se colore pas bien seul).
     class InputBox : Panel
     {
         public readonly TextBox Box = new TextBox { BorderStyle = BorderStyle.None, BackColor = Theme.Input, ForeColor = Theme.Text, Font = Theme.Body };
+        string icon;
+        public string Icon { get => icon; set { icon = value; Padding = new Padding(value != null && Theme.IconFont(11f) != null ? 38 : 12, 9, 12, 6); Invalidate(); } }
         public InputBox()
         {
-            DoubleBuffered = true; BackColor = Theme.Card; Height = 36; Padding = new Padding(10, 8, 10, 6);
+            DoubleBuffered = true; BackColor = Theme.Card; Height = 36; Padding = new Padding(12, 9, 12, 6);
             Box.Dock = DockStyle.Fill;
             Controls.Add(Box);
             Box.GotFocus += (s, e) => Invalidate();
@@ -124,13 +149,14 @@ namespace StremioWT
         {
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var path = Theme.Rounded(new Rectangle(0, 0, Width - 1, Height - 1), 7))
-            using (var b = new SolidBrush(Theme.Input))
-            using (var pen = new Pen(Box.Focused ? Theme.Accent : Theme.CardBorder))
+            using (var path = Theme.Rounded(new Rectangle(0, 0, Width - 1, Height - 1), 12))
+            using (var b = new SolidBrush(Box.BackColor))
+            using (var pen = new Pen(Box.Focused ? Theme.Accent : Theme.CardBorder, Box.Focused ? 1.4f : 1f))
             {
                 g.FillPath(b, path);
                 g.DrawPath(pen, path);
             }
+            if (icon != null) Theme.DrawIcon(g, icon, new Rectangle(8, 0, 26, Height), Box.Focused ? Theme.Accent : Theme.Muted, 11f);
         }
     }
 

@@ -68,6 +68,7 @@ namespace StremioWT
                 }
                 catch (Exception e) { Program.Log("historique Stremio : " + e.Message); }
             });
+            _ = Task.Run(WatchDownload);
             if (isHost)
             {
                 _ = Task.Run(async () => { for (;;) { await Task.Delay(SyncEvery); if (connected) await SendSync(false); } });
@@ -159,6 +160,19 @@ namespace StremioWT
             if (type == "buffer")
             {
                 OnBuffer(msg.TryGetValue("from", out var bf) ? bf as string ?? "?" : "?", msg.TryGetValue("on", out var bo) && bo is bool bb && bb);
+                return;
+            }
+            if (type == "slow")
+            {
+                // Message venu d'un autre participant : valeurs bornées, et une alerte par personne et par minute au plus.
+                double Num(string k, double max) { var d = msg.TryGetValue(k, out var v) && v != null ? Convert.ToDouble(v) : 0; return double.IsNaN(d) ? 0 : Math.Max(0, Math.Min(max, d)); }
+                var who = msg.TryGetValue("from", out var sf) ? sf as string ?? "?" : "?";
+                lock (slowShown)
+                {
+                    if (slowShown.TryGetValue(who, out var last) && DateTime.UtcNow - last < TimeSpan.FromMinutes(1)) return;
+                    slowShown[who] = DateTime.UtcNow;
+                }
+                ShowSlow(who, Num("speed", 1e9), Num("need", 1e9), (int)Num("peers", 10000));
                 return;
             }
             if (type == "wait")

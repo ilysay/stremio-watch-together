@@ -27,6 +27,43 @@ namespace StremioWT.Tests
         [InlineData("WT-pasdubase64!!")]
         public void RejectsInvalidCodes(string text) => Assert.Null(Invite.Parse(text));
 
+        [Theory]
+        [InlineData("WT-K7MQ-2X9F")]
+        [InlineData("wt-k7mq-2x9f")]
+        [InlineData("K7MQ2X9F")]
+        [InlineData(" k7mq 2x9f ")]
+        public void ShortCodeTypedByHand(string text) => Assert.Equal("K7MQ2X9F", Invite.ShortIn(text, anywhere: false));
+
+        [Fact]
+        public void ShortCodeConfusableLettersBecomeDigits() => Assert.Equal("K7M02X91", Invite.ShortIn("K7MO-2X9I", anywhere: false));
+
+        [Fact]
+        public void ShortCodeFoundInsideMessage() => Assert.Equal("K7MQ2X9F", Invite.ShortIn("Rejoins-nous : WT-K7MQ-2X9F (21h)", anywhere: true));
+
+        [Theory]
+        [InlineData("K7MQ-2X9F")]                     // dans un texte, il faut le préfixe WT-
+        [InlineData("bonjour à tous")]
+        [InlineData("WT-K7MQ-2X9FA")]                 // trop long
+        public void ShortCodeNotFoundInText(string text) => Assert.Null(Invite.ShortIn(text, anywhere: true));
+
+        [Fact]
+        public void LongCodeIsNotTakenForAShortOne() =>
+            Assert.Null(Invite.ShortIn(Invite.Make("https://abc-def.trycloudflare.com", "A1B2C3"), anywhere: true));
+
+        [Fact]
+        public void ShortCodeShownPlain() => Assert.Equal("K7MQ2X9F", Invite.ShowShort("K7MQ2X9F"));
+
+        [Theory]
+        [InlineData("K7MQ2X9F")]
+        [InlineData("  k7mq2x9f\n")]
+        public void ShortCodeCopiedAloneFoundInClipboard(string clip) => Assert.Equal("K7MQ2X9F", Invite.ShortIn(clip, anywhere: true));
+
+        [Theory]
+        [InlineData("PASSWORD")]                      // un mot de 8 lettres n'est pas un code
+        [InlineData("12345678")]                      // ni un nombre
+        [InlineData("le code K7MQ2X9F")]              // seul dans le texte, ou précédé de WT-
+        public void WordsAndNumbersAreNotCodes(string clip) => Assert.Null(Invite.ShortIn(clip, anywhere: true));
+
         [Fact]
         public void RejectsNonHttpServer()
         {

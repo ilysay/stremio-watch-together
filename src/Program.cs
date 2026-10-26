@@ -10,7 +10,19 @@ namespace StremioWT
         static StreamWriter log;
 
         // Version « majeure.mineure » : l'hôte et ses amis doivent avoir la même (vérifié par le relay).
-        internal static readonly string ProtocolVersion = Assembly.GetExecutingAssembly().GetName().Version.ToString(2);
+        // Numéro de compatibilité entre StremioWT : deux appareils doivent avoir le même pour se rejoindre (vérifié par
+        // le relay de l'hôte). Indépendant du numéro de l'appli : on ne le change que le jour où le protocole casse
+        // vraiment (messages incompris par les anciennes versions). 4.0 parle encore exactement comme 3.5.
+        internal const string ProtocolVersion = "3.5";
+        // Numéro affiché : « 4.0 », « 4.0.2 »… (sans les zéros de fin inutiles).
+        internal static string DisplayVersion
+        {
+            get
+            {
+                var v = Assembly.GetExecutingAssembly().GetName().Version;
+                return v.Build > 0 ? $"{v.Major}.{v.Minor}.{v.Build}" : $"{v.Major}.{v.Minor}";
+            }
+        }
         internal static readonly string ScriptVersion = Assembly.GetExecutingAssembly().GetName().Version.ToString();
 
         internal static readonly JsonCodec Json = new JsonCodec();

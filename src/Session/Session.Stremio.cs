@@ -20,12 +20,15 @@ namespace StremioWT
                     var msg = Program.Json.Deserialize<Dictionary<string, object>>(payload);
                     var type = msg.TryGetValue("type", out var t) ? t as string : null;
                     if (type == "debug") { Program.Log("stremio : " + (msg.TryGetValue("text", out var x) ? x : "")); return; }
+                    if (type == "torrent") { OnTorrent(msg); return; }
                     if (type == "chat")
                     {
                         var text = msg.TryGetValue("text", out var ct) ? ct as string : "";
-                        SendChat(text, Chat.GifFromLink(text) != null ? Chat.GifFromLink(text) : null);
+                        var gif = msg.TryGetValue("gif", out var cg) ? cg as string : null;
+                        SendChat(text, gif ?? Chat.GifFromLink(text));
                         return;
                     }
+                    if (type == "gif-search") { _ = SearchGifsForPage(msg); return; }
                     if (type == "watched")
                     {
                         var imdb = msg.TryGetValue("imdb", out var im) ? im as string : null;
@@ -46,40 +49,13 @@ namespace StremioWT
             };
             c.Closed += () => { if (!releasing) _ = Task.Run(ReattachStremio); };
             await c.Connect(wsUrl);
-            // Brancher un outil de débogage remet le fond de page de Stremio en blanc opaque, ce qui masque
-            // la vidéo de mpv (dessinée derrière l'interface transparente) : on son, image blanche.
-            // On impose un fond transparent pour toute la durée de la connexion.
-            await KeepTransparent(c);
-            // Une autre connexion de débogage (ou un rechargement) peut remettre le blanc : on réimpose régulièrement.
-            _ = Task.Run(async () => { while (cdp == null || cdp == c) { await Task.Delay(3000); if (releasing) return; try { await KeepTransparent(c); } catch { return; } } });
-            var script = StremioApp.ReadInject();
-            await c.Call("Runtime.enable");
-            await c.Call("Page.enable");
-            await c.Call("Runtime.addBinding", new Dictionary<string, object> { ["name"] = "__wtSend" });
-            await c.Call("Page.addScriptToEvaluateOnNewDocument", new Dictionary<string, object> { ["source"] = script });
-            await c.Eval(script);
-            // Stremio resté ouvert depuis une version précédente de StremioWT : l'ancien script est encore dans la page.
-            // On recharge l'interface une fois ; le nouveau script s'y installe tout seul (addScriptToEvaluateOnNewDocument).
-            var loaded = await c.Eval("window.__wt && window.__wt.version") as string;
-            var lateHook = await c.Eval("!!(window.__wt && window.__wt.needsReload)") is bool late && late;
-            if (loaded != StremioApp.InjectVersion || lateHook)
-            {
-                Program.Log(lateHook ? "Stremio 5 déjà chargé : rechargement de l'interface pour installer le script dès le départ"
-                    : $"script {loaded ?? "ancien"} trouvé dans Stremio (attendu {StremioApp.InjectVersion}) : rechargement de l'interface");
-                await c.Call("Page.reload");
-                for (int i = 0; i < 40 && (await c.Eval("window.__wt && window.__wt.version").ContinueWith(t => t.IsFaulted ? null : t.Result) as string) != StremioApp.InjectVersion; i++)
-                    await Task.Delay(250);
-            }
+            // Une autre connexion de débogage (ou un rechargement) peut remettre le blanc : réimposé tant que c'est la nôtre.
+            await StremioApp.Prepare(c, () => (cdp == null || cdp == c) && !releasing);
             cdp = c;
             PushStatus();
         }
 
         volatile bool releasing;
-
-        static Task KeepTransparent(Cdp c) => c.Call("Emulation.setDefaultBackgroundColorOverride", new Dictionary<string, object>
-        {
-            ["color"] = new Dictionary<string, object> { ["r"] = 0, ["g"] = 0, ["b"] = 0, ["a"] = 0 },
-        });
 
         // Fermeture de StremioWT : une fois déconnecté, le fond blanc reviendrait par-dessus la vidéo.
         // On recharge l'interface de Stremio en partant, ce qui lui rend sa transparence normale.
@@ -105,7 +81,7 @@ namespace StremioWT
             catch (Exception e) { Program.Log("fermeture : " + e.Message); }
         }
 
-        // La liaison avec Stremio s'est coupée : soit Stremio est fermé (on s'arrête),
+        // La liaison avec Stremio s'est coupée : soit Stremio est fermé (on attend qu'il revienne),
         // soit son interface a été rechargée (on se rebranche dessus).
         async Task ReattachStremio()
         {
@@ -121,8 +97,8 @@ namespace StremioWT
                 }
                 else if (Process.GetProcessesByName("stremio").Length + Process.GetProcessesByName("stremio-shell-ng").Length == 0) break;
             }
-            await ReportEnd();
-            Program.Fail(L.T("Stremio a été fermé. Fin du Watch Together."));
+            // Stremio fermé (ou planté) : avant, la séance s'arrêtait. Le salon reste maintenant ouvert.
+            await WaitForStremioBack();
         }
     }
 }

@@ -6,37 +6,59 @@ namespace StremioWT
     {
         public const string RepoUrl = "https://github.com/ilysay/stremio-watch-together";
         public const string DownloadUrl = RepoUrl + "/releases/latest";
-        const string LatestApi = "https://api.github.com/repos/ilysay/stremio-watch-together/releases/latest";
+        const string ReleasesApi = "https://api.github.com/repos/ilysay/stremio-watch-together/releases";
+        const string LatestApi = ReleasesApi + "/latest";
 
         static Version Current => Assembly.GetExecutingAssembly().GetName().Version;
         static Dictionary<string, object> latest; // dernière version publiée (réponse de l'API GitHub)
 
-        // Numéro de la dernière version publiée si elle est plus récente que celle-ci, sinon null (aussi en cas d'erreur réseau).
+        // Numéro de la dernière version publiée si elle apporte quelque chose à ce système, sinon null (aussi en cas
+        // d'erreur réseau). Une version peut ne changer qu'un système : les autres y gardent leur fichier à l'identique.
+        // On compare donc l'empreinte du fichier de ce système avec celle de la version installée ; identique = rien à faire.
         public static async Task<string> NewerVersion()
         {
             try
             {
-                using (var req = new HttpRequestMessage(HttpMethod.Get, LatestApi))
-                using (var cts = new CancellationTokenSource(6000))
-                {
-                    req.Headers.UserAgent.ParseAdd("StremioWT/" + Current.ToString(3)); // exigé par l'API GitHub
-                    using (var res = await Http.SendAsync(req, cts.Token))
-                    {
-                        if (!res.IsSuccessStatusCode) return null;
-                        latest = Json.Deserialize<Dictionary<string, object>>(await res.Content.ReadAsStringAsync());
-                        var tag = latest["tag_name"] as string;
-                        return IsNewer(tag, Current) ? tag.TrimStart('v', 'V') : null;
-                    }
-                }
+                latest = await Release(LatestApi);
+                var tag = latest?["tag_name"] as string;
+                if (latest == null || !IsNewer(tag, Current)) return null;
+                var mine = await Release(ReleasesApi + "/tags/v" + Current.ToString(3));
+                return HasNewFile(latest, mine, AssetName) ? tag.TrimStart('v', 'V') : null;
             }
             catch (Exception e) { Log("mise à jour : " + e.Message); return null; }
         }
+
+        static async Task<Dictionary<string, object>> Release(string url)
+        {
+            using (var req = new HttpRequestMessage(HttpMethod.Get, url))
+            using (var cts = new CancellationTokenSource(6000))
+            {
+                req.Headers.UserAgent.ParseAdd("StremioWT/" + Current.ToString(3)); // exigé par l'API GitHub
+                using (var res = await Http.SendAsync(req, cts.Token))
+                    return res.IsSuccessStatusCode ? Json.Deserialize<Dictionary<string, object>>(await res.Content.ReadAsStringAsync()) : null;
+            }
+        }
+
+        // La nouvelle version a-t-elle un fichier pour ce système, différent de celui de la version installée ?
+        // Sans la version installée sur GitHub (version de développement), on se fie au numéro.
+        internal static bool HasNewFile(Dictionary<string, object> latestRelease, Dictionary<string, object> installedRelease, string asset)
+        {
+            var fresh = Digest(latestRelease, asset);
+            if (fresh == null) return false;
+            return installedRelease == null || Digest(installedRelease, asset) != fresh;
+        }
+
+        static string Digest(Dictionary<string, object> release, string asset) =>
+            (release?["assets"] as System.Collections.ArrayList)?.Cast<Dictionary<string, object>>()
+                .Where(a => a["name"] as string == asset)
+                .Select(a => a.TryGetValue("digest", out var d) ? d as string : null)
+                .FirstOrDefault(d => !string.IsNullOrEmpty(d));
 
         // Mise à jour dans l'appli : télécharge le fichier de la dernière version depuis GitHub, vérifie son empreinte
         // SHA-256 (fournie par GitHub pour chaque fichier publié), puis le met à la place de l'appli en cours.
         // Windows refuse d'écraser un .exe lancé, mais accepte de le renommer : l'ancien devient « .old », effacé au
         // prochain démarrage. Renvoie true si tout est prêt pour relancer.
-        static string AssetName => IsWindows ? "StremioWT.exe" : "StremioWT-linux-x64";
+        static string AssetName => IsWindows ? "StremioWT.exe" : IsMac ? "StremioWT-mac.zip" : "StremioWT-linux-x64";
 
         static string CurrentExe =>
 #if NETFRAMEWORK

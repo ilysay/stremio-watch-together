@@ -28,6 +28,27 @@ namespace StremioWT
             "💔", "💯", "🍿", "🎬", "🍕", "🥤", "🎉", "⭐", "🤡", "👻", "😈", "🫡",
         };
 
+        // Recherche (ou tendances si la requête est vide) : liste de { gif, preview }, ou null si le serveur n'a pas encore la recherche.
+        public static async Task<List<Dictionary<string, string>>> SearchGifs(string query, CancellationToken token)
+        {
+            var url = GifServer + "?q=" + Uri.EscapeDataString(query) + "&lang=" + L.Lang;
+            using (var res = await Program.Http.GetAsync(url, token))
+            {
+                if ((int)res.StatusCode == 503) return null;
+                var data = Program.Json.Deserialize<Dictionary<string, object>>(await res.Content.ReadAsStringAsync());
+                var list = (data.TryGetValue("results", out var r) ? r as System.Collections.ArrayList : null) ?? new System.Collections.ArrayList();
+                var found = new List<Dictionary<string, string>>();
+                foreach (var g in list.OfType<Dictionary<string, object>>())
+                {
+                    var gif = g.TryGetValue("gif", out var gg) ? gg as string : null;
+                    var preview = g.TryGetValue("preview", out var pp) ? pp as string : null;
+                    if (!IsAllowedGif(gif)) continue;
+                    found.Add(new Dictionary<string, string> { ["gif"] = gif, ["preview"] = IsAllowedGif(preview) ? preview : gif });
+                }
+                return found;
+            }
+        }
+
         public static string ApplyShortcuts(string text)
         {
             foreach (var kv in Shortcuts) text = text.Replace(kv.Key, kv.Value);

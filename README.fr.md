@@ -12,7 +12,7 @@ Une petite appli, un code d'invitation, sans compte, sans serveur.
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0c2048?style=flat-square)
 [![Linux bêta](https://img.shields.io/badge/Linux-b%C3%AAta-f5a623?style=flat-square&logo=linux&logoColor=white)](linux/README.md)
 [![Mac version test](https://img.shields.io/badge/Mac-version%20test-e5484d?style=flat-square&logo=apple&logoColor=white)](mac/README.md)
-![Taille](https://img.shields.io/badge/taille-~450%20Ko-0c2048?style=flat-square)
+![Taille](https://img.shields.io/badge/taille-~800%20Ko-0c2048?style=flat-square)
 ![Langues](https://img.shields.io/badge/langues-15-0c2048?style=flat-square)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-0c2048?style=flat-square)](LICENSE)
 
@@ -42,16 +42,19 @@ Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord
 ## Fonctionnalités
 
 - 🎬 **Vraie synchro** : lecture, pause, déplacement et épisode suivant suivent le salon, avec recalage automatique.
-- 🔗 **Rejoindre en un clic** : l'hôte envoie un lien d'invitation. Les amis qui n'ont pas l'appli arrivent sur une page qui leur donne le bon téléchargement (Windows, Linux ou Mac) et les fait entrer dès qu'ils l'ouvrent ; ceux qui l'ont entrent directement. Le code seul (`WT-…`) marche toujours.
+- 🧩 **Directement dans Stremio** : Stremio s'ouvre avec un bouton **Watch Together**. Héberger, rejoindre, inviter et voir qui est là sans quitter Stremio ; la petite fenêtre StremioWT se met de côté.
+- 🔗 **Rejoindre en un clic** : l'hôte envoie un lien d'invitation. Les amis qui n'ont pas l'appli arrivent sur une page qui leur donne le bon téléchargement (Windows, Linux ou Mac) et les fait entrer dès qu'ils l'ouvrent ; ceux qui l'ont entrent directement. Ceux qui ont l'appli peuvent aussi taper le code court du salon, comme `K7MQ2X9F`.
 - 🔄 **Mises à jour en un clic** : quand une version sort, l'appli la télécharge depuis GitHub, vérifie son empreinte SHA-256 et redémarre.
 - ⏳ **Attend ceux qui chargent** : si le flux de quelqu'un charge, tout le monde se met en pause et reprend ensemble. Un garde-fou de 30 secondes et un clic « ne pas l'attendre » évitent de bloquer la soirée.
+- 🐢 **Alerte de source trop lente** : si le torrent de quelqu'un est trop lent, ou ne trouve aucun peer, tout le monde est prévenu et invité à choisir une source avec plus de seeds (ou Real-Debrid).
+- 🛟 **Résiste à un plantage de Stremio** : le salon reste ouvert, les amis sont prévenus, et un bouton **Relancer Stremio** vous remet en synchro.
 - 👑 **Contrôle de l'hôte** : un interrupteur, et seul l'hôte peut mettre pause, avancer ou changer d'épisode.
 - 👀 **La version de Stremio de chacun** à côté de son pseudo, avec un avertissement quand les versions n'ouvrent pas les torrents de la même façon.
 - 💬 **Chat avec émotes et GIF**, dans la fenêtre et par-dessus la vidéo (touche **T** dans Stremio).
 - 🛡️ **Les sources privées restent privées** : les liens Real-Debrid ou d'autres débrideurs ne sont jamais envoyés au salon. Les amis reçoivent l'épisode et choisissent leur propre source.
 - 📔 **Mon journal** : tout ce que vous regardez (films, séries, animes) est noté avec affiches et notes. Les films s'exportent vers Letterboxd en un clic.
 - 🌍 **15 langues**, choisies automatiquement selon la langue de votre ordinateur : English, Français, Español, Português, Deutsch, Italiano, Türkçe, Polski, Čeština, Русский, 中文, हिन्दी, العربية, বাংলা, Bahasa Indonesia.
-- 🪶 **Léger et portable** : un seul `.exe` d'environ 450 Ko, rien à installer ni à configurer.
+- 🪶 **Léger et portable** : un seul `.exe` d'environ 800 Ko, rien à installer ni à configurer.
 
 ## Démarrage rapide
 
@@ -64,14 +67,14 @@ Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord
 
 ### Organiser une soirée
 1. [Téléchargez `StremioWT.exe`](https://github.com/ilysay/stremio-watch-together/releases/latest) et double-cliquez dessus.
-2. Cliquez sur **Héberger un salon** : le code d'invitation est copié.
-3. Collez-le à vos amis (Discord, WhatsApp…), puis lancez un film dans Stremio.
+2. Cliquez sur **Héberger un salon**, dans l'appli ou avec le bouton **Watch Together** dans Stremio. Le lien d'invitation est copié, et le code court du salon (comme `K7MQ2X9F`) s'affiche.
+3. Envoyez le lien ou le code à vos amis (Discord, WhatsApp…), puis lancez un film dans Stremio.
 
 ### Rejoindre un ami
-1. Copiez le code d'invitation reçu.
-2. Double-cliquez sur `StremioWT.exe`. C'est tout : l'appli lit le code et rejoint le salon.
+1. Cliquez sur le lien d'invitation reçu, ou copiez le code.
+2. Double-cliquez sur `StremioWT.exe`. L'appli lit un code copié et rejoint le salon toute seule. Vous pouvez aussi taper le code court dans **Rejoindre un salon**.
 
-> Stremio redémarre une fois en mode « Watch Together » quand vous rejoignez ou hébergez. Gardez la petite fenêtre ouverte (réduite si vous voulez) pendant le film. L'appli démarre en anglais : ⚙ > **Language** > Français.
+> À l'ouverture de StremioWT, Stremio redémarre une fois en mode « Watch Together », avec le bouton **Watch Together** dedans. Gardez StremioWT ouvert pendant le film (il se réduit tout seul). L'appli s'affiche dans la langue de votre ordinateur ; pour la changer : ⚙ Paramètres.
 
 ## Comment ça marche
 
