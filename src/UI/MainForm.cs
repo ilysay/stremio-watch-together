@@ -9,10 +9,9 @@ namespace StremioWT
         readonly InputBox codeBox = new InputBox();
         readonly FlatButton joinButton = new FlatButton(L.T("Rejoindre"), primary: true, Glyph.Join);
         readonly FlatButton hostButton = new FlatButton(L.T("Héberger un salon"), primary: false, Glyph.Play);
-        readonly ToggleSwitch localBox = new ToggleSwitch(L.T("Option : amis sur le même wifi seulement (sans Internet)")) { ForeColor = Theme.Muted, Font = Theme.Small, BackColor = Theme.Card, Icon = Glyph.Wifi };
         readonly Label startStatus = new Label { AutoSize = false, ForeColor = Theme.Muted, Font = Theme.Small, BackColor = Color.Transparent };
         // Affiché sous une erreur de l'accueil : ouvre le rapport de bug avec ce message d'erreur.
-        readonly FlatButton reportButton = new FlatButton(L.T("Signaler ce problème"), primary: false, Glyph.Bug) { Location = new Point(24, 578), Size = new Size(220, 34), Visible = false };
+        readonly FlatButton reportButton = new FlatButton(L.T("Signaler ce problème"), primary: false, Glyph.Bug) { Location = new Point(24, 548), Size = new Size(220, 34), Visible = false };
 
         readonly Panel sessionPanel = new Panel { Dock = DockStyle.Fill, Visible = false };
         readonly Label statusDot = new Label { Text = "●", AutoSize = true, ForeColor = Theme.Muted, Font = new Font("Segoe UI", 13f), BackColor = Color.Transparent };
@@ -169,12 +168,11 @@ namespace StremioWT
             joinButton.SetBounds(16, 108, 400, 38);
             joinCard.Controls.AddRange(new Control[] { codeBox, joinButton });
 
-            var hostCard = new Card(L.T("Héberger un salon"), Glyph.Play) { Location = new Point(24, 378), Size = new Size(432, 124) };
+            var hostCard = new Card(L.T("Héberger un salon"), Glyph.Play) { Location = new Point(24, 378), Size = new Size(432, 94) };
             hostButton.SetBounds(16, 44, 400, 38);
-            localBox.SetBounds(16, 90, 400, 24);
-            hostCard.Controls.AddRange(new Control[] { hostButton, localBox });
+            hostCard.Controls.Add(hostButton);
 
-            startStatus.SetBounds(24, 514, 432, 60);
+            startStatus.SetBounds(24, 484, 432, 60);
             reportButton.Click += (s, e) => new ReportForm(startStatus.Text).ShowDialog(this);
             joinButton.Click += (s, e) => StartJoin();
             hostButton.Click += (s, e) => StartHost();
@@ -317,7 +315,7 @@ namespace StremioWT
 
         void SetStartBusy(bool busy, string message)
         {
-            joinButton.Enabled = hostButton.Enabled = codeBox.Enabled = nameBox.Enabled = localBox.Enabled = !busy;
+            joinButton.Enabled = hostButton.Enabled = codeBox.Enabled = nameBox.Enabled = !busy;
             startStatus.ForeColor = Theme.Muted;
             startStatus.Text = message;
             reportButton.Visible = false;
@@ -348,12 +346,12 @@ namespace StremioWT
 
         async void StartHost()
         {
-            SetStartBusy(true, localBox.Checked ? L.T("Création du salon…") : L.T("Création du salon et ouverture de l'accès Internet…"));
+            SetStartBusy(true, L.T("Création du salon et ouverture de l'accès Internet…"));
             var startLog = new Action<string>(line => Ui(() => { startStatus.Text = line; PushPanel(); }));
             Program.Output += startLog;
             try
             {
-                var (s, code, shortCode) = await Task.Run(() => Rooms.Host(Pseudo(), localBox.Checked));
+                var (s, code, shortCode) = await Task.Run(() => Rooms.Host(Pseudo(), local: false));
                 Program.Output -= startLog;
                 ShowSession(s, code, shortCode);
             }

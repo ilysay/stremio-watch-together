@@ -112,7 +112,8 @@ namespace StremioWT
                 var b64 = m.Groups[1].Value.Replace('-', '+').Replace('_', '/');
                 b64 += new string('=', (4 - b64.Length % 4) % 4);
                 var o = Json.Deserialize<Dictionary<string, object>>(Encoding.UTF8.GetString(Convert.FromBase64String(b64)));
-                if (o.TryGetValue("s", out var s) && s is string srv && Regex.IsMatch(srv, "^https?://") && o.TryGetValue("r", out var r) && r is string rm)
+                // Mêmes formats que pour un code court : un salon piégé ailleurs pourrait faire ouvrir n'importe quel lien.
+                if (o.TryGetValue("s", out var s) && s is string srv && ShortTarget.IsMatch(srv.TrimEnd('/')) && o.TryGetValue("r", out var r) && r is string rm && Regex.IsMatch(rm, "^[0-9A-Fa-f]{6}$"))
                     return (srv.TrimEnd('/'), rm.ToUpperInvariant());
             }
             catch { }

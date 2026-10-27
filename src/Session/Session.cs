@@ -72,7 +72,6 @@ namespace StremioWT
             if (isHost)
             {
                 _ = Task.Run(async () => { for (;;) { await Task.Delay(SyncEvery); if (connected) await SendSync(false); } });
-                _ = Task.Run(async () => { for (;;) { await Task.Delay(1000); CheckWaitTimeouts(); } });
             }
             await Listen();
         }
@@ -150,6 +149,7 @@ namespace StremioWT
                 if (chat != null) ShowChat(chat);
                 return;
             }
+            if (type != null && type.StartsWith("roulette-")) { OnRouletteMessage(type, msg); return; }
             if (type == "rating")
             {
                 if (msg.TryGetValue("imdb", out var ri) && ri is string rimdb && msg.TryGetValue("rating", out var rr))
@@ -191,7 +191,13 @@ namespace StremioWT
                 PushStatus();
                 return;
             }
-            if (type == "need-sync") { Program.Log($"demande de synchro de {msg["from"]}"); if (isHost) _ = SendSync(true); return; }
+            if (type == "need-sync")
+            {
+                Program.Log($"demande de synchro de {msg["from"]}");
+                if (isHost) { OnReady(msg["from"] as string ?? "?"); _ = SendSync(true); }
+                return;
+            }
+            if (type == "open") OnOpen(msg.TryGetValue("from", out var of) ? of as string ?? "?" : "?", msg);
             if (type != "sync" || (msg.TryGetValue("force", out var f) && f is bool fb && fb))
                 Program.Log($"reçu {type} de {(msg.TryGetValue("from", out var fr) ? fr : "?")}" + (msg.TryGetValue("time", out var tm) ? $" à {Convert.ToDouble(tm) / 1000:0}s" : ""));
             msg["receivedAt"] = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds;

@@ -13,7 +13,7 @@ namespace StremioWT
         // Numéro de compatibilité entre StremioWT : deux appareils doivent avoir le même pour se rejoindre (vérifié par
         // le relay de l'hôte). Indépendant du numéro de l'appli : on ne le change que le jour où le protocole casse
         // vraiment (messages incompris par les anciennes versions). 4.0 parle encore exactement comme 3.5.
-        internal const string ProtocolVersion = "3.5";
+        internal const string ProtocolVersion = "3.6";
         // Numéro affiché : « 4.0 », « 4.0.2 »… (sans les zéros de fin inutiles).
         internal static string DisplayVersion
         {

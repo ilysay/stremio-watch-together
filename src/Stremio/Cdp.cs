@@ -11,6 +11,9 @@ namespace StremioWT
 
         public async Task Connect(string url)
         {
+            // Pas de « ping » WebSocket (envoyé par défaut toutes les 30 s) : le moteur de Stremio 4 (Qt) ne le comprend
+            // pas et coupait la liaison toutes les 30 s. La page perdait alors les messages envoyés pendant la reconnexion.
+            ws.Options.KeepAliveInterval = TimeSpan.Zero;
             await ws.ConnectAsync(new Uri(url), CancellationToken.None);
             _ = Task.Run(ReceiveLoop);
         }

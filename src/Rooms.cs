@@ -69,7 +69,7 @@ namespace StremioWT
             {
                 Console.WriteLine(L.T("Ouverture de l'accès Internet…"));
                 try { publicUrl = await Tunnel.Start(port); }
-                catch (Exception e) { Telemetry.Error("tunnel"); throw new Exception(L.F("Accès Internet impossible ({0}). Si vous êtes sur le même wifi, coche l'option « même wifi seulement ».", e.Message)); }
+                catch (Exception e) { Telemetry.Error("tunnel"); throw new Exception(L.F("Accès Internet impossible ({0}). Vérifie ta connexion puis réessaie.", e.Message)); }
             }
             var code = Invite.Make(publicUrl, room);
             var shortCode = await Invite.RegisterShort(publicUrl, room);

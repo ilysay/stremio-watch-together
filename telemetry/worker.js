@@ -8,7 +8,7 @@
 //   GET  /room/<code>                                     → { s, r } : adresse temporaire du salon, pour qui a le code court
 //
 // Ce qui est enregistré : un identifiant d'installation ALÉATOIRE (sans lien avec la personne),
-// la version, la langue de l'appli, le type d'événement (launch / host / join / error / session / optout),
+// la version, la langue de l'appli, le type d'événement (launch / host / join / error / session / optout / roulette),
 // la taille du salon, le type de problème rencontré, la durée arrondie d'une séance,
 // et le pays (déduit par Cloudflare, l'adresse IP elle-même n'est jamais stockée).
 // Ce qui n'est JAMAIS enregistré : adresse IP, pseudo, titres, liens, messages du chat, codes de salon.
@@ -18,8 +18,13 @@
 // gardé 30 jours. Limites : 3 par minute et par expéditeur (liaison facultative « REPORT_LIMIT », rien n'est stocké), 30 par heure au total.
 //
 // Liaisons à configurer dans Cloudflare : base D1 nommée « DB », secrets « STATS_KEY » et « GIPHY_KEY ».
+// Facultatif : secret « DISCORD_WEBHOOK » (adresse d'un webhook Discord) pour être prévenu à chaque tour de roulette.
 
-const EVENTS = ['launch', 'host', 'join', 'error', 'session', 'optout'];
+const EVENTS = ['launch', 'host', 'join', 'error', 'session', 'optout', 'roulette'];
+// Roulette : thème choisi, puis options (« nanar-battle-mystery »). Envoyé par l'hôte à chaque tour de roue.
+const ROULETTE = /^(classic|horror|nanar|90s|gem|short)(-battle)?(-mystery)?$/;
+const ROULETTE_NAMES = { classic: 'Goûts mélangés', horror: 'Horreur', nanar: 'Nanar', '90s': 'Années 90', gem: 'Pépite cachée', short: 'Moins de 1 h 40' };
+const rouletteName = d => ROULETTE_NAMES[d.split('-')[0]] + (d.includes('-battle') ? ' · battle royale' : '') + (d.includes('-mystery') ? ' · affiches cachées' : '');
 // Valeurs acceptées pour chaque détail : tout le reste est refusé (rien de libre ne peut être envoyé).
 const ERRORS = ['stremio-missing', 'stremio-noreply', 'tunnel', 'room-unreachable', 'version', 'room-full', 'crash'];
 const DURATIONS = ['0-5m', '5-30m', '30-60m', '1-2h', '2-3h', '3h+'];
@@ -117,6 +122,18 @@ async function ping(request, env) {
   }
 
   const size = Math.max(0, Math.min(50, parseInt(m.size, 10) || 0));
+  if (event === 'roulette') {
+    if (!ROULETTE.test(detail)) return new Response('invalide', { status: 400 });
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO pings (day, id, event, v, size) VALUES (?1, ?2, 'roulette', ?3, ?4)
+         ON CONFLICT (day, id, event, v) DO UPDATE SET size = MAX(size, excluded.size)`).bind(day, id, v, size),
+      addDetail('roulette', detail)]);
+    if (env.DISCORD_WEBHOOK) {
+      const content = `🎰 Roulette lancée · ${rouletteName(detail)} · salon de ${size} personne${size > 1 ? 's' : ''}`;
+      try { await fetch(env.DISCORD_WEBHOOK, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content }) }); } catch {}
+    }
+    return new Response(null, { status: 204 });
+  }
   const writes = [env.DB.prepare(
     `INSERT INTO pings (day, id, event, v, size) VALUES (?1, ?2, ?3, ?4, ?5)
      ON CONFLICT (day, id, event, v) DO UPDATE SET size = MAX(size, excluded.size)`)
@@ -216,6 +233,9 @@ async function stats(url, env) {
   const sessions = await detail('session', 29);
   const countries = await detail('country', 29);
   const langs = await detail('lang', 29);
+  const roulette = await detail('roulette', 29);
+  const [spins] = await q(`SELECT COALESCE(SUM(n), 0) AS n, COUNT(DISTINCT id) AS users FROM details WHERE kind = 'roulette' AND day >= ?1`, since(6));
+  const spinsByDay = Object.fromEntries((await q(`SELECT day, SUM(n) AS n FROM details WHERE kind = 'roulette' AND day >= ?1 GROUP BY day`, since(29))).map(r => [r.day, r.n]));
   sessions.sort((a, b) => DURATIONS.indexOf(a.detail) - DURATIONS.indexOf(b.detail));
 
   const esc = s => String(s ?? '–').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -242,6 +262,8 @@ async function stats(url, env) {
   <div class="card"><b>${week.n}</b>utilisateurs sur 7 jours</div>
   <div class="card"><b>${month.n}</b>utilisateurs sur 30 jours</div>
   <div class="card"><b>${total.n}</b>installations depuis le début</div>
+  <div class="card"><b>${spins.n}</b>tours de roulette sur 7 jours</div>
+  <div class="card"><b>${spins.users}</b>hôtes qui ont lancé la roulette (7 jours)</div>
 </div>
 <h2>Problèmes rencontrés (7 derniers jours)</h2>
 ${table(['Problème', 'Fois', 'Personnes touchées'], errors.map(e => [ERROR_NAMES[e.detail] || e.detail, e.times, e.users]), 'Aucun problème signalé. 🎉')}
@@ -252,10 +274,12 @@ ${table(['Durée', 'Séances'], sessions.map(s => [s.detail.replace('m', ' min')
 ${table(['Pays', 'Utilisateurs'], countries.map(c => [name(countryName, c.detail), c.users]), 'Pas encore de données.')}</div>
 <div><h2>Langue de l'appli (30 jours)</h2>
 ${table(['Langue', 'Utilisateurs'], langs.map(l => [name(langName, l.detail), l.users]), 'Pas encore de données.')}</div>
+<div><h2>Roulette : thèmes (30 jours)</h2>
+${table(['Thème', 'Tours', 'Hôtes'], roulette.map(r => [rouletteName(r.detail), r.times, r.users]), 'Pas encore de tour de roulette.')}</div>
 <div><h2>Versions (7 jours)</h2>
 ${table(['Version', 'Utilisateurs'], versions.map(v => [v.v, v.users]), 'Pas encore de données.')}</div>
 </div>
 <h2>Par jour (30 derniers jours)</h2>
-${table(['Jour', 'Utilisateurs', 'Salons créés', 'Salons rejoints', 'Taille moyenne'], days.map(d => [d.day, d.users, d.hosts, d.joins, d.avg_size]), 'Pas encore de données.')}`;
+${table(['Jour', 'Utilisateurs', 'Salons créés', 'Salons rejoints', 'Taille moyenne', 'Tours de roulette'], days.map(d => [d.day, d.users, d.hosts, d.joins, d.avg_size, spinsByDay[d.day] || 0]), 'Pas encore de données.')}`;
   return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }

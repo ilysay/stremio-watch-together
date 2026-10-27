@@ -3,8 +3,8 @@ namespace StremioWT
     // Deux filets de sécurité pendant la séance :
     // 1. Stremio fermé ou planté : le salon reste ouvert, les amis sont prévenus, et on se rebranche dès que
     //    Stremio revient (relancé à la main ou par le bouton « Relancer Stremio »).
-    // 2. Téléchargement trop lent : le serveur local de Stremio donne la vitesse du torrent en cours. Si elle ne suit
-    //    pas le débit du film, on le dit à tout le monde une fois, avec la piste à suivre (source avec plus de seeds).
+    // 2. Téléchargement trop lent : quand notre lecteur reste bloqué en chargement, le serveur local de Stremio donne la
+    //    vitesse du torrent. Si elle ne suit pas le débit du film, on le dit à tout le monde une fois (source avec plus de seeds).
     partial class Session
     {
         // --- 1. Stremio fermé ------------------------------------------------------------------------
@@ -62,7 +62,13 @@ namespace StremioWT
         // Envoyé par la page à chaque nouvelle vidéo : le torrent lu (null si lien direct, Real-Debrid…).
         void OnTorrent(Dictionary<string, object> msg)
         {
+            var previous = torrentHash;
             torrentHash = msg.TryGetValue("hash", out var h) && h is string hs && Regex.IsMatch(hs, "^[0-9a-f]{40}$") ? hs : null;
+            // Autre torrent : Stremio continuerait de télécharger l'ancien fichier en entier pendant une vingtaine de secondes,
+            // en prenant la moitié du débit au nouveau (mesuré : 11 à 18 s au lieu de 7 s pour démarrer). On l'arrête tout de suite.
+            // Même torrent (épisode suivant d'un pack de saison) : on le garde, ses pairs sont déjà connectés.
+            if (previous != null && previous != torrentHash)
+                _ = Program.Http.GetAsync($"http://127.0.0.1:11470/{previous}/remove").ContinueWith(t => { if (t.Status == TaskStatus.RanToCompletion) t.Result.Dispose(); });
             torrentFile = msg.TryGetValue("idx", out var i) && i != null ? Convert.ToInt32(i) : 0;
             slowCount = 0;
             slowReported = false;
@@ -82,6 +88,12 @@ namespace StremioWT
         {
             var hash = torrentHash;
             if (hash == null || slowReported || cdp == null) return;
+            // Seulement quand notre lecteur attend vraiment des données. Sinon la vitesse ne veut rien dire : Stremio
+            // ralentit exprès le téléchargement dès qu'il a assez d'avance, et un fichier déjà sur le disque (déjà vu)
+            // se lit sans aucun peer. Ces deux cas donnaient de fausses alertes en pleine lecture fluide.
+            bool stuck;
+            lock (waitGate) stuck = bufferingSince.ContainsKey(name);
+            if (!stuck) { slowCount = 0; return; }
             Dictionary<string, object> stats;
             using (var cts = new CancellationTokenSource(3000))
             using (var res = await Program.Http.GetAsync($"http://127.0.0.1:11470/{hash}/{torrentFile}/stats.json", cts.Token))

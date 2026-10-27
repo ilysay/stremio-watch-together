@@ -86,6 +86,27 @@ namespace StremioWT.Tests
             Assert.Equal(1, Count(body, "chat"));
         }
 
+        // Un invité ne peut pas imposer un tirage, un vote ou un film à la place de l'hôte.
+        [Fact]
+        public async Task OnlyHostCanDriveTheRoulette()
+        {
+            await JoinBoth();
+            foreach (var t in new[] { "roulette-spin", "roulette-open", "roulette-votes", "roulette-vetoed", "roulette-vote-open", "roulette-request" })
+                await Send("guest", "{\"type\":\"" + t + "\",\"id\":\"tt1\"}");
+            await Send("guest", "{\"type\":\"roulette-vote\",\"yes\":true}");
+            var body = await PollText("host", "Hote");
+            Assert.Equal(0, Count(body, "roulette-spin") + Count(body, "roulette-open") + Count(body, "roulette-votes") + Count(body, "roulette-vetoed") + Count(body, "roulette-vote-open") + Count(body, "roulette-request"));
+            Assert.Equal(1, Count(body, "roulette-vote"));
+        }
+
+        [Fact]
+        public async Task LimitsRouletteReactionsLikeChat()
+        {
+            await JoinBoth();
+            foreach (var i in Enumerable.Range(1, 8)) await Send("guest", "{\"type\":\"roulette-react\",\"e\":\"🔥\"}");
+            Assert.Equal(5, Count(await PollText("host", "Hote"), "roulette-react"));
+        }
+
         [Fact]
         public async Task OnlyHostCanSendHostCommands()
         {

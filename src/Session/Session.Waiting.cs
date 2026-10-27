@@ -2,22 +2,20 @@ namespace StremioWT
 {
     partial class Session
     {
-        const int MaxWaitMs = 30000;
-        // Quelqu'un qui recharge sans arrêt (connexion trop lente) mettrait tout le monde en pause toutes les
-        // quelques secondes : au-delà de RepeatLimit chargements en une minute, on ne l'attend plus pendant RepeatPause.
-        const int RepeatLimit = 4;
-        static readonly TimeSpan RepeatWindow = TimeSpan.FromMinutes(1), RepeatPause = TimeSpan.FromMinutes(2);
-        readonly Dictionary<string, List<DateTime>> bufferStarts = new Dictionary<string, List<DateTime>>();
-        readonly Dictionary<string, DateTime> tooSlowUntil = new Dictionary<string, DateTime>();
+        // On attend toujours ceux qui chargent, aussi longtemps qu'il le faut : l'appli ne laisse jamais quelqu'un
+        // en arrière d'elle-même. Seul l'hôte peut choisir de ne plus attendre une personne (clic sur son pseudo).
         readonly object waitGate = new object();
         readonly SemaphoreSlim waitLock = new SemaphoreSlim(1, 1);
         readonly Dictionary<string, DateTime> bufferingSince = new Dictionary<string, DateTime>();
         readonly HashSet<string> dontWait = new HashSet<string>();
-        readonly HashSet<string> timedOut = new HashSet<string>();
+        // Nouvel épisode : ceux qui ne l'ont pas encore chargé. Sans ça, celui qui l'ouvre démarrait seul, et les autres,
+        // prêts quelques secondes plus tard, devaient sauter à sa position : leur torrent chargeait deux fois.
+        readonly HashSet<string> opening = new HashSet<string>();
+        string openedKey;
         string[] waitNames = new string[0];
         bool waitingNow, pausedBeforeWait;
 
-        public bool IsLoading(string who) { lock (waitGate) return bufferingSince.ContainsKey(who); }
+        public bool IsLoading(string who) { lock (waitGate) return bufferingSince.ContainsKey(who) || opening.Contains(who); }
         public bool IsNotWaited(string who) { lock (waitGate) return dontWait.Contains(who); }
 
         public void ToggleDontWait(string who)
@@ -32,26 +30,45 @@ namespace StremioWT
 
         void OnBuffer(string who, bool on)
         {
-            bool tooSlow = false;
             lock (waitGate)
             {
-                if (on && !bufferingSince.ContainsKey(who))
-                {
-                    bufferingSince[who] = DateTime.UtcNow;
-                    if (!bufferStarts.TryGetValue(who, out var starts)) bufferStarts[who] = starts = new List<DateTime>();
-                    starts.Add(DateTime.UtcNow);
-                    starts.RemoveAll(t => DateTime.UtcNow - t > RepeatWindow);
-                    if (starts.Count >= RepeatLimit && !IsTooSlow(who)) { tooSlowUntil[who] = DateTime.UtcNow + RepeatPause; starts.Clear(); tooSlow = true; }
-                }
-                else if (!on) { bufferingSince.Remove(who); timedOut.Remove(who); }
-            }
-            if (tooSlow && isHost)
-            {
-                Console.WriteLine($"{who} recharge sans arrêt : on ne l'attend plus pendant 2 min.");
-                ToPage(new Dictionary<string, object> { ["type"] = "toast", ["text"] = L.F("{0} charge depuis trop longtemps, on continue sans lui", who) });
+                if (on && !bufferingSince.ContainsKey(who)) bufferingSince[who] = DateTime.UtcNow;
+                else if (!on) { bufferingSince.Remove(who); opening.Remove(who); }
             }
             Program.Log($"{who} {(on ? "charge" : "a fini de charger")}");
             if (isHost) _ = UpdateWait();
+            StateChanged?.Invoke();
+        }
+
+        // Hôte : quelqu'un ouvre un épisode. Tous les autres sont attendus jusqu'à ce que leur lecteur soit prêt.
+        // Le même épisode avec une autre source (choisie à la main, Real-Debrid…) ne relance pas l'attente des autres.
+        void OnOpen(string who, Dictionary<string, object> msg)
+        {
+            var hash = msg.TryGetValue("hash", out var h) ? h as string : null;
+            if (!isHost || hash == null || !hash.StartsWith("#/player/")) return;
+            var key = string.Join("/", hash.Split('/').Take(5));
+            lock (waitGate)
+            {
+                if (key == openedKey) opening.Remove(who);
+                else
+                {
+                    openedKey = key;
+                    opening.Clear();
+                    foreach (var m in members) if (m != who) opening.Add(m);
+                }
+            }
+            _ = UpdateWait();
+            StateChanged?.Invoke();
+        }
+
+        // Lecteur prêt sur l'épisode ouvert par un autre (la page demande alors la position de l'hôte).
+        void OnReady(string who)
+        {
+            bool was;
+            lock (waitGate) was = opening.Remove(who);
+            if (!was) return;
+            Program.Log($"{who} a chargé l'épisode");
+            _ = UpdateWait();
             StateChanged?.Invoke();
         }
 
@@ -62,7 +79,7 @@ namespace StremioWT
             try
             {
                 string[] active;
-                lock (waitGate) active = bufferingSince.Keys.Where(n => !dontWait.Contains(n) && !timedOut.Contains(n) && !IsTooSlow(n)).OrderBy(n => n).ToArray();
+                lock (waitGate) active = bufferingSince.Keys.Union(opening).Where(n => !dontWait.Contains(n)).Distinct().OrderBy(n => n).ToArray();
                 if (active.Length > 0)
                 {
                     if (!waitingNow)
@@ -103,24 +120,6 @@ namespace StremioWT
             bool mine = shown.Contains("toi");
             Console.WriteLine(mine && shown.Length == 1 ? "Les autres t'attendent (chargement)…" : $"En attente de {string.Join(", ", shown)} (chargement)…");
             ToPage(new Dictionary<string, object> { ["type"] = "wait", ["names"] = shown, ["mine"] = mine });
-        }
-
-        bool IsTooSlow(string who) => tooSlowUntil.TryGetValue(who, out var until) && DateTime.UtcNow < until;
-
-        void CheckWaitTimeouts()
-        {
-            var expired = new List<string>();
-            lock (waitGate)
-                foreach (var kv in bufferingSince)
-                    if (!timedOut.Contains(kv.Key) && !dontWait.Contains(kv.Key) && (DateTime.UtcNow - kv.Value).TotalMilliseconds > MaxWaitMs)
-                    { timedOut.Add(kv.Key); expired.Add(kv.Key); }
-            if (expired.Count == 0) return;
-            foreach (var who in expired)
-            {
-                Console.WriteLine($"{who} charge depuis plus de 30 s : on ne l'attend plus.");
-                ToPage(new Dictionary<string, object> { ["type"] = "toast", ["text"] = L.F("{0} charge depuis trop longtemps, on continue sans lui", who) });
-            }
-            _ = UpdateWait();
         }
     }
 }

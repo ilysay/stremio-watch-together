@@ -70,5 +70,13 @@ namespace StremioWT.Tests
             var raw = System.Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("{\"s\":\"file:///C:/\",\"r\":\"AAA\"}"));
             Assert.Null(Invite.Parse("WT-" + raw.TrimEnd('=').Replace('+', '-').Replace('/', '_')));
         }
+
+        // Un code piégé ne doit pas pouvoir brancher l'invité sur un serveur quelconque.
+        [Theory]
+        [InlineData("https://evil.example.com", "A1B2C3")]
+        [InlineData("http://8.8.8.8:8787", "A1B2C3")]
+        [InlineData("https://abc.trycloudflare.com.evil.com", "A1B2C3")]
+        [InlineData("https://abc-def.trycloudflare.com", "../../x")]
+        public void RejectsUnknownServerOrRoom(string server, string room) => Assert.Null(Invite.Parse(Invite.Make(server, room)));
     }
 }

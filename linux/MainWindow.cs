@@ -14,7 +14,6 @@ namespace StremioWT
         readonly ContentControl screen = new ContentControl();
         readonly TextBox nameBox = new TextBox { MaxLength = 32 };
         readonly TextBox codeBox = new TextBox { Watermark = "WT-…" };
-        readonly ToggleSwitch localBox = new ToggleSwitch();
         readonly TextBlock startStatus = Muted("");
         // Affiché sous une erreur de l'accueil : ouvre le rapport de bug avec ce message d'erreur.
         readonly Button reportButton = new Button { Content = Icons.Label("alert", L.T("Signaler ce problème")), IsVisible = false, Padding = new Thickness(14, 8) };
@@ -140,7 +139,6 @@ namespace StremioWT
         Control BuildStart()
         {
             nameBox.Text = Rooms.DefaultName();
-            SwitchLabel(localBox, () => IconText("wifi", Muted(L.T("Option : amis sur le même wifi seulement (sans Internet)"))));
             joinButton.Click += (s, e) => StartJoin();
             hostButton.Click += (s, e) => StartHost();
             codeBox.KeyDown += (s, e) => { if (e.Key == Avalonia.Input.Key.Enter) StartJoin(); };
@@ -176,7 +174,7 @@ namespace StremioWT
             return Page(Header(),
                 Card(Heading(L.T("Ton pseudo"), "user"), nameBox),
                 Card(Heading(L.T("Rejoindre un salon"), "login"), Muted(L.T("Colle ou tape le code reçu (8 caractères ou WT-…)")), codeBox, joinButton),
-                Card(Heading(L.T("Héberger un salon"), "play"), hostButton, localBox),
+                Card(Heading(L.T("Héberger un salon"), "play"), hostButton),
                 startStatus, reportButton, update, DiaryButton(), settings);
         }
 
@@ -184,7 +182,7 @@ namespace StremioWT
 
         void SetBusy(bool busy, string message)
         {
-            joinButton.IsEnabled = hostButton.IsEnabled = nameBox.IsEnabled = codeBox.IsEnabled = localBox.IsEnabled = !busy;
+            joinButton.IsEnabled = hostButton.IsEnabled = nameBox.IsEnabled = codeBox.IsEnabled = !busy;
             startStatus.Foreground = Palette.Brush(Palette.Muted);
             startStatus.Text = message;
             startError = false;
@@ -216,15 +214,14 @@ namespace StremioWT
 
         async void StartHost()
         {
-            SetBusy(true, localBox.IsChecked == true ? L.T("Création du salon…") : L.T("Création du salon et ouverture de l'accès Internet…"));
+            SetBusy(true, L.T("Création du salon et ouverture de l'accès Internet…"));
             Action<string> progress = line => Dispatcher.UIThread.Post(() => { startStatus.Text = line; PushPanel(); });
             Program.Output += progress;
             try
             {
                 // Lu ici : les contrôles ne se lisent que depuis le fil de l'interface.
-                bool local = localBox.IsChecked == true;
                 var name = Pseudo();
-                var (s, code, shortCode) = await Task.Run(() => Rooms.Host(name, local));
+                var (s, code, shortCode) = await Task.Run(() => Rooms.Host(name, local: false));
                 ShowSession(s, code, shortCode);
             }
             catch (Exception e) { ShowError(e.Message); }

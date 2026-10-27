@@ -1,6 +1,6 @@
 <Project>
   <!-- Version de l'appli : dans un salon, tout le monde doit avoir la même « majeure.mineure ». -->
   <PropertyGroup>
-    <Version>4.0.0</Version>
+    <Version>4.1.0</Version>
   </PropertyGroup>
 </Project>

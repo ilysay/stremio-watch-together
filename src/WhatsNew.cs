@@ -6,10 +6,10 @@ namespace StremioWT
     {
         internal static (string Icon, string Title, string Body)[] Items => new[]
         {
-            ("🎬", L.T("Watch Together dans Stremio"), L.T("Un bouton Watch Together apparaît dans Stremio : héberge, rejoins et invite tes amis sans quitter Stremio.")),
-            ("🔢", L.T("Codes de salon courts"), L.T("Ton salon a un code de 8 caractères, facile à dicter ou à taper. Le lien d'invitation marche toujours.")),
-            ("🎨", L.T("Nouveau look"), L.T("Les couleurs et les icônes de Stremio, dans l'appli comme dans Stremio.")),
-            ("🔄", L.T("Synchro plus fiable"), L.T("Changements d'épisode mieux suivis, salon gardé si Stremio se ferme, et alerte si le téléchargement de quelqu'un est trop lent.")),
+            ("🎰", L.T("La roulette"), L.T("Personne n'arrive à choisir ? La roulette tire un film selon les goûts de tout le salon. Thèmes, battle royale, vote et veto.")),
+            ("▶️", L.T("On démarre ensemble"), L.T("À chaque nouvel épisode, le salon attend que tout le monde ait chargé, puis tout le monde démarre au même moment.")),
+            ("⚡", L.T("Changement de vidéo plus rapide"), L.T("L'ancienne vidéo arrête de se télécharger dès qu'on en change : la nouvelle démarre plus vite.")),
+            ("🔧", L.T("Plus fiable"), L.T("Stremio 4 ne décroche plus, fini les fausses alertes de lenteur, et relance automatique après une erreur de lecture sur Linux et Mac.")),
         };
     }
 }

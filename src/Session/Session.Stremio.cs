@@ -29,6 +29,7 @@ namespace StremioWT
                         return;
                     }
                     if (type == "gif-search") { _ = SearchGifsForPage(msg); return; }
+                    if (type != null && type.StartsWith("roulette")) { OnRoulettePage(type, msg); return; }
                     if (type == "watched")
                     {
                         var imdb = msg.TryGetValue("imdb", out var im) ? im as string : null;
@@ -42,6 +43,8 @@ namespace StremioWT
                         return;
                     }
                     if (!PageTypes.Contains(type)) return;
+                    if (type == "open") OnOpen(name, msg);
+                    if (type == "need-sync" && isHost) OnReady(name);
                     if (type != "need-sync") Program.Log($"action locale : {type}" + (msg.TryGetValue("time", out var tm) ? $" à {Convert.ToDouble(tm) / 1000:0}s" : ""));
                     _ = Post(msg);
                 }

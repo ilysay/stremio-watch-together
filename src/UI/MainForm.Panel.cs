@@ -57,7 +57,7 @@ namespace StremioWT
                 case "join":
                     if (session != null || !hostButton.Enabled) return;
                     if (Text("name").Length > 0) nameBox.Box.Text = Text("name");
-                    if (action == "host") { localBox.Checked = msg.TryGetValue("local", out var l) && l is bool lb && lb; StartHost(); }
+                    if (action == "host") StartHost();
                     else { codeBox.Box.Text = Text("code"); StartJoin(); }
                     break;
                 case "copy-link": if (inviteLong.Length > 0) Program.SetClipboardText(Invite.Link(inviteLong)); break;

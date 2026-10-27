@@ -48,6 +48,7 @@ namespace StremioWT
         {
             if (kind != "series")
             {
+                AskRouletteFeedback(imdb);
                 var entry = await Journal.Record(imdb, members.Where(m => m != name));
                 Console.WriteLine($"Film ajouté à ton journal : {entry.Display}.");
                 FilmFinished?.Invoke(entry);

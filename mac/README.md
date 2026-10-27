@@ -90,7 +90,7 @@ Open the Stremio app for Mac and leave it running in the background: it provides
 <details>
 <summary><b>My friends can't join</b></summary>
 
-The first time you host, the app downloads `cloudflared` (Cloudflare's official tool) to open the room to the Internet. Wait for it to finish. If you're all on the same Wi-Fi, tick **same Wi-Fi only** instead.
+The first time you host, the app downloads `cloudflared` (Cloudflare's official tool) to open the room to the Internet. Wait for it to finish.
 </details>
 
 <details>

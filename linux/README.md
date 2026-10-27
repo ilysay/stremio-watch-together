@@ -114,7 +114,7 @@ Run `bash install.sh` again, or install Google Chrome or Chromium yourself.
 <details>
 <summary><b>My friends can't join</b></summary>
 
-The first time you host, the app downloads `cloudflared` (Cloudflare's official tool, ~60 MB) to open the room to the Internet. Wait for it to finish. If you're all on the same Wi-Fi, tick **same Wi-Fi only** instead.
+The first time you host, the app downloads `cloudflared` (Cloudflare's official tool, ~60 MB) to open the room to the Internet. Wait for it to finish.
 </details>
 
 <details>

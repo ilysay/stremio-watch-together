@@ -12,7 +12,7 @@ Une petite appli, un code d'invitation, sans compte, sans serveur.
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0c2048?style=flat-square)
 [![Linux bêta](https://img.shields.io/badge/Linux-b%C3%AAta-f5a623?style=flat-square&logo=linux&logoColor=white)](linux/README.md)
 [![Mac version test](https://img.shields.io/badge/Mac-version%20test-e5484d?style=flat-square&logo=apple&logoColor=white)](mac/README.md)
-![Taille](https://img.shields.io/badge/taille-~800%20Ko-0c2048?style=flat-square)
+![Taille](https://img.shields.io/badge/taille-~1%20Mo-0c2048?style=flat-square)
 ![Langues](https://img.shields.io/badge/langues-15-0c2048?style=flat-square)
 [![Licence MIT](https://img.shields.io/badge/licence-MIT-0c2048?style=flat-square)](LICENSE)
 
@@ -34,6 +34,19 @@ Une petite appli, un code d'invitation, sans compte, sans serveur.
 
 https://github.com/user-attachments/assets/d6ba2f92-6f26-4fec-a811-aa4ec20408ba
 
+## 🎰 Nouveau dans la 4.1 : la roulette
+
+<img src="docs/roulette.webp" width="720" alt="La roulette qui fait défiler des affiches de films">
+
+Personne n'arrive à choisir ? L'hôte lance la roulette et tout le salon voit la même roue tourner, en direct.
+Elle choisit des films qui devraient plaire à tout le monde, d'après les genres que chacun regarde sur Stremio, et écarte ceux que quelqu'un a déjà vus. Ton historique ne quitte jamais ton PC : seules les préférences de genres sont partagées.
+
+- 🎭 **Thèmes** : Horreur, Nanar, Années 90, Pépite cachée, Moins de 1 h 40, ou Surprise.
+- ⚔️ **Battle royale** : 3 tirages, puis les finalistes sont éliminés un par un jusqu'au dernier film.
+- ❓ **Affiches cachées** : on ne juge pas un film à son affiche, elle se retourne à la toute fin.
+- 🗳️ **Vote et veto** : un vote express de 12 secondes, un veto par personne et par soirée, et des réactions emoji pendant que ça tourne.
+- ▶️ **Un clic** et le film démarre chez tout le monde.
+
 ## Pourquoi
 
 Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord dégrade l'image et le son.
@@ -41,11 +54,12 @@ Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord
 
 ## Fonctionnalités
 
+- 🎰 **Roulette de films** : choisit un film qui devrait plaire à tout le salon, avec thèmes, battle royale, vote et veto ([voir plus haut](#-nouveau-dans-la-41--la-roulette)).
 - 🎬 **Vraie synchro** : lecture, pause, déplacement et épisode suivant suivent le salon, avec recalage automatique.
 - 🧩 **Directement dans Stremio** : Stremio s'ouvre avec un bouton **Watch Together**. Héberger, rejoindre, inviter et voir qui est là sans quitter Stremio ; la petite fenêtre StremioWT se met de côté.
 - 🔗 **Rejoindre en un clic** : l'hôte envoie un lien d'invitation. Les amis qui n'ont pas l'appli arrivent sur une page qui leur donne le bon téléchargement (Windows, Linux ou Mac) et les fait entrer dès qu'ils l'ouvrent ; ceux qui l'ont entrent directement. Ceux qui ont l'appli peuvent aussi taper le code court du salon, comme `K7MQ2X9F`.
 - 🔄 **Mises à jour en un clic** : quand une version sort, l'appli la télécharge depuis GitHub, vérifie son empreinte SHA-256 et redémarre.
-- ⏳ **Attend ceux qui chargent** : si le flux de quelqu'un charge, tout le monde se met en pause et reprend ensemble. Un garde-fou de 30 secondes et un clic « ne pas l'attendre » évitent de bloquer la soirée.
+- ⏳ **Attend ceux qui chargent** : si le flux de quelqu'un charge, tout le monde se met en pause et reprend ensemble, aussi longtemps qu'il le faut. Un nouvel épisode démarre au même moment pour tout le monde, une fois que chacun l'a chargé. L'hôte peut cliquer sur un pseudo pour ne plus attendre cette personne.
 - 🐢 **Alerte de source trop lente** : si le torrent de quelqu'un est trop lent, ou ne trouve aucun peer, tout le monde est prévenu et invité à choisir une source avec plus de seeds (ou Real-Debrid).
 - 🛟 **Résiste à un plantage de Stremio** : le salon reste ouvert, les amis sont prévenus, et un bouton **Relancer Stremio** vous remet en synchro.
 - 👑 **Contrôle de l'hôte** : un interrupteur, et seul l'hôte peut mettre pause, avancer ou changer d'épisode.
@@ -54,7 +68,7 @@ Stremio n'a pas de soirée film à plusieurs, et partager son écran sur Discord
 - 🛡️ **Les sources privées restent privées** : les liens Real-Debrid ou d'autres débrideurs ne sont jamais envoyés au salon. Les amis reçoivent l'épisode et choisissent leur propre source.
 - 📔 **Mon journal** : tout ce que vous regardez (films, séries, animes) est noté avec affiches et notes. Les films s'exportent vers Letterboxd en un clic.
 - 🌍 **15 langues**, choisies automatiquement selon la langue de votre ordinateur : English, Français, Español, Português, Deutsch, Italiano, Türkçe, Polski, Čeština, Русский, 中文, हिन्दी, العربية, বাংলা, Bahasa Indonesia.
-- 🪶 **Léger et portable** : un seul `.exe` d'environ 800 Ko, rien à installer ni à configurer.
+- 🪶 **Léger et portable** : un seul `.exe` d'environ 1 Mo, rien à installer ni à configurer.
 
 ## Démarrage rapide
 
@@ -146,13 +160,7 @@ Vous avez sûrement pris des versions différentes (autre montage, ou version à
 <details>
 <summary><b>Et si le flux de quelqu'un est lent ?</b></summary>
 
-Le salon se met en pause pendant son chargement et reprend ensemble. Au-delà de 30 secondes, on ne l'attend plus. L'hôte peut aussi cliquer sur un pseudo pour ne jamais attendre cette personne.
-</details>
-
-<details>
-<summary><b>Ça marche sur le même wifi sans Internet ?</b></summary>
-
-Oui : cochez « amis sur le même wifi seulement » avant d'héberger. Aucun tunnel n'est ouvert.
+Le salon se met en pause pendant son chargement et reprend ensemble. On l'attend aussi longtemps qu'il le faut. L'hôte peut aussi cliquer sur un pseudo pour ne jamais attendre cette personne.
 </details>
 
 <details>

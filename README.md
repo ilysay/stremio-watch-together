@@ -12,7 +12,7 @@ One tiny app, one invite code, no account, no server.
 ![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0c2048?style=flat-square)
 [![Linux beta](https://img.shields.io/badge/Linux-beta-f5a623?style=flat-square&logo=linux&logoColor=white)](linux/README.md)
 [![Mac test version](https://img.shields.io/badge/Mac-test%20version-e5484d?style=flat-square&logo=apple&logoColor=white)](mac/README.md)
-![Size](https://img.shields.io/badge/size-~800%20KB-0c2048?style=flat-square)
+![Size](https://img.shields.io/badge/size-~1%20MB-0c2048?style=flat-square)
 ![Languages](https://img.shields.io/badge/languages-15-0c2048?style=flat-square)
 [![License: MIT](https://img.shields.io/badge/license-MIT-0c2048?style=flat-square)](LICENSE)
 
@@ -34,6 +34,19 @@ One tiny app, one invite code, no account, no server.
 
 https://github.com/user-attachments/assets/d6ba2f92-6f26-4fec-a811-aa4ec20408ba
 
+## 🎰 New in 4.1: the Roulette
+
+<img src="docs/roulette.webp" width="720" alt="The roulette spinning through movie posters">
+
+Nobody can decide what to watch? The host spins the roulette and the whole room watches the same wheel, live.
+It picks movies everyone should like, based on the genres each of you watches on Stremio, and skips the ones someone already saw. Your watch history never leaves your PC: only genre preferences are shared.
+
+- 🎭 **Themes**: Horror, So bad it's good, 90s, Hidden gem, Under 1h40, or Surprise.
+- ⚔️ **Battle royale**: 3 spins, then the finalists are knocked out one by one until one movie is left.
+- ❓ **Hidden posters**: no judging a movie by its cover, the poster flips at the very end.
+- 🗳️ **Vote and veto**: a quick 12-second vote, one veto per person per night, and emoji reactions while it spins.
+- ▶️ **One click** and the movie starts for everyone.
+
 ## Why
 
 Stremio has no watch party. Screen sharing on Discord kills the quality and the sound sync.
@@ -41,11 +54,12 @@ Stremio has no watch party. Screen sharing on Discord kills the quality and the 
 
 ## Features
 
+- 🎰 **Movie roulette**: picks a movie the whole room should like, with themes, battle royale, vote and veto ([see above](#-new-in-41-the-roulette)).
 - 🎬 **Real sync**: play, pause, seek and next episode follow the room, with automatic catch-up.
 - 🧩 **Right inside Stremio**: Stremio opens with a **Watch Together** button. Host, join, invite and see who's there without leaving Stremio; the small StremioWT window steps aside.
 - 🔗 **Join in one click**: the host sends an invite link. Friends without the app land on a page that gets them the right download (Windows, Linux or Mac) and joins the room as soon as they open it; friends who have it go straight in. Friends who have the app can also just type the room's short code, like `K7MQ2X9F`.
 - 🔄 **Updates in one click**: when a new version is out, the app downloads it from GitHub, checks its SHA-256 fingerprint and restarts.
-- ⏳ **Waits for slow loaders**: when someone's stream is buffering, everyone pauses and resumes together. A 30-second safeguard and a "don't wait for them" click keep the night going.
+- ⏳ **Waits for slow loaders**: when someone's stream is buffering, everyone pauses and resumes together, however long it takes. A new episode starts for everyone at the same moment, once all have loaded it. The host can click a name to stop waiting for that person.
 - 🐢 **Slow source alert**: if someone's torrent is too slow, or finds no peers at all, everyone is told to pick a source with more seeds (or Real-Debrid).
 - 🛟 **Survives a Stremio crash**: the room stays open, friends are told, and a **Restart Stremio** button brings you back in sync.
 - 👑 **Host controls**: one switch and only the host can pause, seek or change episode.
@@ -54,7 +68,7 @@ Stremio has no watch party. Screen sharing on Discord kills the quality and the 
 - 🛡️ **Private sources stay private**: Real-Debrid and other debrid links are never sent to the room. Friends get the episode and pick their own source.
 - 📔 **My diary**: everything you watch (movies, series, anime) is logged with posters and ratings. Movies export to Letterboxd in one click.
 - 🌍 **15 languages**, picked automatically from your computer's language: English, Français, Español, Português, Deutsch, Italiano, Türkçe, Polski, Čeština, Русский, 中文, हिन्दी, العربية, বাংলা, Bahasa Indonesia.
-- 🪶 **Tiny and portable**: a single ~800 KB `.exe`, nothing to install, nothing to configure.
+- 🪶 **Tiny and portable**: a single ~1 MB `.exe`, nothing to install, nothing to configure.
 
 ## Quick start
 
@@ -146,13 +160,7 @@ You probably picked different releases (another cut, or a 25 fps version that ru
 <details>
 <summary><b>What if someone's stream is slow?</b></summary>
 
-The room pauses while they load and resumes together. After 30 seconds it stops waiting for them. The host can also click a name in the participants list so the room never waits for that person.
-</details>
-
-<details>
-<summary><b>Can I use it on the same Wi-Fi without Internet?</b></summary>
-
-Yes, turn on "friends on the same Wi-Fi only" before hosting. No tunnel is opened.
+The room pauses while they load and resumes together, however long it takes. The host can also click a name in the participants list so the room never waits for that person.
 </details>
 
 <details>
