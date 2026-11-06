@@ -159,7 +159,8 @@ namespace StremioWT
             }
             if (type == "buffer")
             {
-                OnBuffer(msg.TryGetValue("from", out var bf) ? bf as string ?? "?" : "?", msg.TryGetValue("on", out var bo) && bo is bool bb && bb);
+                try { OnBuffer(msg.TryGetValue("from", out var bf) ? bf as string ?? "?" : "?", msg.TryGetValue("on", out var bo) && bo is bool bb && bb, msg); }
+                catch (Exception e) { Program.Log("chargement : message illisible (" + e.Message + ")"); }
                 return;
             }
             if (type == "slow")
@@ -177,7 +178,8 @@ namespace StremioWT
             }
             if (type == "wait")
             {
-                ShowWait(((msg["names"] as System.Collections.ArrayList) ?? new System.Collections.ArrayList()).Cast<object>().Select(o => o as string));
+                ShowWait(((msg["names"] as System.Collections.ArrayList) ?? new System.Collections.ArrayList()).Cast<object>().Select(o => o as string),
+                    msg.TryGetValue("progress", out var wp) ? wp as Dictionary<string, object> : null);
                 return;
             }
             if (type == "go") Console.WriteLine("Tout le monde est prêt : reprise ensemble.");

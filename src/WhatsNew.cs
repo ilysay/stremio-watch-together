@@ -6,10 +6,8 @@ namespace StremioWT
     {
         internal static (string Icon, string Title, string Body)[] Items => new[]
         {
-            ("🎰", L.T("La roulette"), L.T("Personne n'arrive à choisir ? La roulette tire un film selon les goûts de tout le salon. Thèmes, battle royale, vote et veto.")),
-            ("▶️", L.T("On démarre ensemble"), L.T("À chaque nouvel épisode, le salon attend que tout le monde ait chargé, puis tout le monde démarre au même moment.")),
-            ("⚡", L.T("Changement de vidéo plus rapide"), L.T("L'ancienne vidéo arrête de se télécharger dès qu'on en change : la nouvelle démarre plus vite.")),
-            ("🔧", L.T("Plus fiable"), L.T("Stremio 4 ne décroche plus, fini les fausses alertes de lenteur, et relance automatique après une erreur de lecture sur Linux et Mac.")),
+            ("🛠️", L.T("Plus stable"), L.T("Une connexion lente ne coupe plus la lecture toutes les quelques secondes, et on peut de nouveau taper le code du salon dans Stremio.")),
+            ("🍎", L.T("Bug du port 9333 corrigé sur Mac"), L.T("Fini l'erreur « port 9333 déjà utilisé » : si le navigateur est resté ouvert, StremioWT y rouvre simplement Stremio.")),
         };
     }
 }

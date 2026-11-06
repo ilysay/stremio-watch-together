@@ -58,6 +58,9 @@ namespace StremioWT
                 var grip = new Border { Height = TitleBarHeight, VerticalAlignment = VerticalAlignment.Top, Background = Brushes.Transparent };
                 grip.PointerPressed += (s, e) => BeginMoveDrag(e);
                 root.Children.Add(grip);
+                // Fenêtre visible mais appli pas au premier plan (Chrome lancé juste après) : les clics passent, le clavier
+                // va encore à l'appli précédente, impossible de taper le code. Un clic dans la fenêtre la remet au premier plan.
+                AddHandler(PointerPressedEvent, (s, e) => { if (!IsActive) Activate(); }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
             }
             Content = root;
             screen.Content = BuildStart();

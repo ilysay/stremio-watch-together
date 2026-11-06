@@ -38,7 +38,7 @@ namespace StremioWT
                     }
                     if (type == "buffer")
                     {
-                        OnBuffer(name, msg.TryGetValue("on", out var o) && o is bool ob && ob);
+                        OnBuffer(name, msg.TryGetValue("on", out var o) && o is bool ob && ob, msg);
                         if (!isHost) _ = Post(msg);
                         return;
                     }

@@ -199,6 +199,9 @@ namespace StremioWT
         {
             var ws = await FindPageWsUrl();
             if (ws != null) return ws;
+            // Sur Mac, fermer la fenêtre ne quitte pas le navigateur : notre navigateur tourne encore, sans page Stremio.
+            // On lui fait rouvrir Stremio Web au lieu de croire qu'un autre programme occupe le port.
+            if (IsBrowser(exe) && await ReopenStremioWeb()) return await WaitForPage(exe);
             if (await PortTakenByOther())
             {
                 Telemetry.Error("stremio-noreply");
@@ -239,6 +242,23 @@ namespace StremioWT
                 else Process.Start(LinuxLaunch(exe));
                 return await WaitForPage(exe);
             }
+        }
+
+        // Un navigateur répond sur le port de pilotage : on lui demande un onglet Stremio Web (PUT exigé depuis Chrome 111).
+        static async Task<bool> ReopenStremioWeb()
+        {
+            try
+            {
+                using (var cts = new CancellationTokenSource(3000))
+                using (var req = new HttpRequestMessage(HttpMethod.Put, $"http://127.0.0.1:{DebugPort}/json/new?{StremioWeb}"))
+                using (var res = await Http.SendAsync(req, cts.Token))
+                {
+                    if (!res.IsSuccessStatusCode) return false;
+                    Program.Log("navigateur de StremioWT encore ouvert sans Stremio : nouvel onglet Stremio Web");
+                    return true;
+                }
+            }
+            catch { return false; }
         }
 
         // Le port de pilotage répond, mais ce n'est pas Stremio : un autre programme l'occupe.

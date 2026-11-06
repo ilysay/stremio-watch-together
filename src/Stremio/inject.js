@@ -10,6 +10,7 @@
   const LOAD_QUIET_MS = 1500;
   const SEEK_EPS_FORCED = 1000;
   const SEEK_EPS_SYNC = 2500;
+  const SEEK_EPS_EXACT = 300;
 
   let applying = false;
   let loading = false;
@@ -22,8 +23,17 @@
   let adminLock = false;
   let lastLockToast = 0;
   const BUFFER_REPORT_MS = 800;
-  let bufSince = 0, bufReported = false;
+  let bufSince = 0, bufReported = false, bufReportedAt = 0, bufStall = false;
   let waiting = false;
+  // Coupure en pleine lecture alors que les autres nous attendent : on reste en pause le temps de faire une réserve
+  // de vidéo d'avance, qui grandit si les coupures se répètent (connexion plus lente que la vidéo). Sans réserve,
+  // on repartait avec une seconde d'avance et on recoupait aussitôt : tout le salon s'arrêtait toutes les 2 secondes.
+  const FILL_MARGINS = [3000, 8000, 15000, 30000];
+  const STALL_MEMORY_MS = 5 * 60000;
+  let stalls = [];        // moments des coupures récentes
+  let waitedFor = false;  // l'hôte attend notre chargement
+  let fill = null;        // réserve en cours : { margin, since, best, grewAt, sent, sentAt }
+  let roomSize = -1;      // inconnue tant que l'appli n'a pas envoyé le statut du salon
   const WATCHED_RATIO = 0.85; // film considéré comme vu à 85 % (le générique de fin n'est pas compté)
   let watchedKey = null;
   // Dernier épisode chargé dans ce lecteur : sous Stremio Web, un nouvel essai de lecture du même épisode
@@ -212,6 +222,12 @@
       set paused(p) { if (!video) return; quiet(); wantPaused = { v: !!p, at: now() }; if (p) video.pause(); else video.play().catch(() => {}); },
       get length() { return video && isFinite(video.duration) ? video.duration * 1000 : 0; },
       get state() { return !video || video.readyState < 1 ? 1 : video.seeking || video.readyState < 3 ? 2 : video.paused ? 4 : 3; },
+      get ahead() {
+        if (!video) return null;
+        const b = video.buffered, t = video.currentTime;
+        for (let i = 0; i < b.length; i++) if (b.start(i) <= t + 0.3 && b.end(i) >= t) return (b.end(i) - t) * 1000;
+        return 0;
+      },
     };
     function attach(v) {
       video = v;
@@ -253,7 +269,15 @@
     const paused = msg.type === 'pause' ? true : msg.type === 'play' ? false : !!msg.paused;
     let target = msg.time;
     if (!paused && msg.receivedAt) target += now() - msg.receivedAt;
-    const eps = msg.type === 'sync' && !msg.force ? SEEK_EPS_SYNC : SEEK_EPS_FORCED;
+    // Départ après une attente : tout le monde est en pause sur ce qu'il a chargé, on se cale au plus près.
+    const eps = msg.exact ? SEEK_EPS_EXACT : msg.type === 'sync' && !msg.force ? SEEK_EPS_SYNC : SEEK_EPS_FORCED;
+    // En retard sur l'hôte sans avoir chargé la suite : sauter en avant viderait notre réserve et couperait aussitôt.
+    // On fait plutôt attendre les autres, qui repartent de notre position.
+    const behind = typeof target === 'number' ? target - (d.time || 0) : 0;
+    if (WEB && msg.type === 'sync' && !msg.force && !paused && behind > eps && typeof d.ahead === 'number' && behind > d.ahead && roomSize !== 1) {
+      lagBehind(behind);
+      return;
+    }
     applying = true;
     try {
       if (typeof target === 'number' && Math.abs((d.time || 0) - target) > eps) d.time = Math.max(0, Math.min(target, d.length - 1000));
@@ -401,6 +425,13 @@
     clearTimeout(gifTimer);
   }
 
+  // Stremio Web retire le focus de tout champ qui n'est pas à lui (écouteur « focusin » sur la page) : impossible
+  // de taper le code dans le panneau. On arrête l'évènement à la fenêtre, avant lui, quand il vient de nos éléments.
+  ['focusin', 'focusout'].forEach(type => window.addEventListener(type, e => {
+    const t = e.target;
+    if (t && t.closest && t.closest('[id^="wt-"]')) e.stopImmediatePropagation();
+  }, true));
+
   // Clavier : T ouvre le chat ; pendant la saisie, les touches ne vont pas à Stremio (sinon espace = pause…).
   const typingElsewhere = () => { const a = document.activeElement; return a && !(chatInputWrap && chatInputWrap.contains(a)) && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable); };
   ['keydown', 'keypress', 'keyup'].forEach(type => window.addEventListener(type, e => {
@@ -447,23 +478,29 @@
     if (msg.type === 'roulette-react') return floatEmoji(msg.e, msg.from);
     if (msg.type === 'roulette-feedback-ask') return rouletteFeedback(msg.name);
     if (msg.type === 'wait') {
+      const pct = n => msg.progress && msg.progress[n] > 0 ? n + ' ' + msg.progress[n] + ' %' : n;
       if (msg.mine) {
-        // C'est nous qu'on attend : surtout ne pas se mettre en pause, sinon le chargement s'arrête.
+        // C'est nous qu'on attend : pas de pause tant que la vidéo charge (la pause de réserve vient après, voir fill).
         waiting = false;
-        const others = (msg.names || []).filter(n => n !== 'toi');
-        showBanner(T("Les autres t'attendent (chargement)…") + (others.length ? T(' · aussi : ') + others.join(', ') : ''));
+        waitedFor = true;
+        waitOthers = (msg.names || []).filter(n => n !== 'toi').map(pct);
+        showWaitedBanner();
         return;
       }
       waiting = true;
-      showBanner(T('En attente de {0} (chargement)…', (msg.names || []).join(', ')));
+      waitedFor = false;
+      fill = null;
+      showBanner(T('En attente de {0} (chargement)…', (msg.names || []).map(pct).join(', ')));
       silentPause();
       return;
     }
     if (msg.type === 'go') {
       waiting = false;
+      waitedFor = false;
+      fill = null;
       hideBanner();
       if (msg.hash && !sameVideo(msg.hash, location.hash)) return;
-      const go = { type: 'sync', force: true, time: msg.time, paused: !!msg.paused, receivedAt: msg.receivedAt };
+      const go = { type: 'sync', force: true, exact: !!msg.exact, time: msg.time, paused: !!msg.paused, receivedAt: msg.receivedAt };
       if (loading || !isReady(device())) { pending = go; return; }
       applyState(go);
       return;
@@ -483,6 +520,9 @@
       return;
     }
     if (!['play', 'pause', 'seek', 'sync'].includes(msg.type)) return;
+    // Pendant qu'on nous attend, la synchro régulière de l'hôte (en pause, plus loin) nous mettait en pause en pleine
+    // coupure, puis nous faisait sauter hors de ce qui était chargé. On la reprend au signal de départ.
+    if (msg.type === 'sync' && (waitedFor || fill) && (!msg.hash || sameVideo(msg.hash, location.hash))) return;
     checkLength(msg);
     if (msg.type === 'play') toast(T('{0} a repris la lecture', msg.from));
     if (msg.type === 'pause') toast(T('{0} a mis pause', msg.from));
@@ -557,21 +597,88 @@
   }
 
   function reportBuffering() {
+    if (fill) return updateFill();
     if (isBuffering()) {
       if (!bufSince) bufSince = now();
       if (!bufReported && now() - bufSince >= BUFFER_REPORT_MS) {
         bufReported = true;
-        debug('chargement en cours, signalé aux autres');
-        toNode(Object.assign({ type: 'buffer', on: true }, ids()));
+        bufReportedAt = now();
+        // Coupure en pleine lecture (pas l'ouverture d'un épisode) : elle compte pour la taille de la réserve.
+        bufStall = !loading && !noVideoSince;
+        if (bufStall) { stalls = stalls.filter(t => now() - t < STALL_MEMORY_MS); stalls.push(now()); }
+        debug('chargement en cours, signalé aux autres' + (bufStall ? ' (coupure ' + stalls.length + ' en 5 min)' : ''));
+        toNode(Object.assign({ type: 'buffer', on: true, progress: 0 }, ids()));
       }
-    } else {
-      bufSince = 0;
-      if (bufReported) {
-        bufReported = false;
-        debug('chargement terminé, signalé aux autres');
-        toNode(Object.assign({ type: 'buffer', on: false }, ids()));
-      }
+      return;
     }
+    bufSince = 0;
+    if (!bufReported) return;
+    // Taille du salon inconnue (statut pas encore reçu après un rechargement) : on fait comme si on n'était pas seul.
+    // Stremio Web seulement : Chrome repart avec presque rien d'avance ; mpv (applis Windows) attend déjà un peu de cache.
+    if (WEB && bufStall && roomSize !== 1 && inPlayer()) {
+      if (waitedFor) return startFill();
+      // L'ordre d'attente de l'hôte peut arriver juste après la reprise : on lui laisse un instant.
+      if (now() - bufReportedAt < 2000) return;
+    }
+    endBuffer();
+  }
+
+  // Compté comme une coupure : l'hôte nous attend, on fait une réserve, puis tout le monde repart de notre position.
+  function lagBehind(behind) {
+    if (bufReported || fill) return;
+    bufReported = true;
+    bufReportedAt = now();
+    bufStall = true;
+    stalls = stalls.filter(t => now() - t < STALL_MEMORY_MS); stalls.push(now());
+    debug('en retard de ' + (behind / 1000).toFixed(1) + ' s sur l\'hôte, suite pas encore chargée : les autres nous attendent (coupure ' + stalls.length + ' en 5 min)');
+    toNode(Object.assign({ type: 'buffer', on: true, progress: 0 }, ids()));
+  }
+
+  function endBuffer(time) {
+    bufReported = false;
+    debug('chargement terminé, signalé aux autres');
+    toNode(Object.assign({ type: 'buffer', on: false }, typeof time === 'number' ? { time } : {}, ids()));
+  }
+
+  function startFill() {
+    const margin = FILL_MARGINS[Math.min(stalls.length, FILL_MARGINS.length) - 1];
+    fill = { margin, since: now(), best: -1, grewAt: now(), sent: 0, sentAt: 0 };
+    silentPause();
+    debug('réserve de ' + margin / 1000 + ' s avant de repartir');
+    updateFill();
+  }
+
+  // En pause, la vidéo continue de se charger : on repart quand la réserve est faite.
+  function updateFill() {
+    const d = device();
+    // Plus dans le lecteur, autre épisode, ou lecture relancée à la main : on arrête d'attendre la réserve.
+    if (!inPlayer() || loading || !isReady(d) || !d.paused) { fill = null; return endBuffer(); }
+    const ahead = typeof d.ahead === 'number' ? d.ahead : null;
+    const need = Math.min(fill.margin, Math.max(0, d.length - d.time - 1000));
+    let progress;
+    if (ahead === null) progress = (now() - fill.since) / Math.max(1, fill.margin); // pas de mesure : on attend le temps de la réserve
+    else {
+      if (ahead > fill.best + 300) { fill.best = ahead; fill.grewAt = now(); }
+      progress = need <= 0 ? 1 : ahead / need;
+      // Le lecteur ne charge pas plus loin d'avance (sa propre limite) : on repart avec ce qu'il a.
+      if (now() - fill.grewAt > (ahead >= 2000 ? 6000 : 20000)) progress = 1;
+    }
+    const pct = Math.max(0, Math.min(100, Math.floor(progress * 100)));
+    if (pct !== fill.sent && (pct >= 100 || now() - fill.sentAt >= 1000)) {
+      fill.sent = pct; fill.sentAt = now();
+      showWaitedBanner();
+      if (pct < 100) toNode(Object.assign({ type: 'buffer', on: true, progress: pct }, ids()));
+    }
+    if (pct < 100) return;
+    debug('réserve faite (' + (ahead === null ? 'durée' : Math.round(ahead / 1000) + ' s d\'avance') + ') en ' + Math.round((now() - fill.since) / 1000) + ' s');
+    fill = null;
+    endBuffer(d.time);
+  }
+
+  let waitOthers = [];
+  function showWaitedBanner() {
+    showBanner(T("Les autres t'attendent (chargement)…") + (fill && fill.sent > 0 ? ' ' + fill.sent + ' %' : '') +
+      (waitOthers.length ? T(' · aussi : ') + waitOthers.join(', ') : ''));
   }
 
   function checkWatched() {
@@ -671,6 +778,7 @@
   function setStatus(s) {
     ensureUi();
     adminLock = !!s.admin && !s.host;
+    roomSize = s.connected ? (s.members || []).length : 0;
     const dot = s.connected ? '#3ddc84' : '#ff5c5c';
     statusEl.textContent = '';
     const d = document.createElement('span');

@@ -13,7 +13,13 @@ namespace StremioWT
         readonly HashSet<string> opening = new HashSet<string>();
         string openedKey;
         string[] waitNames = new string[0];
+        string waitShown = "";
         bool waitingNow, pausedBeforeWait;
+        // Réserve de vidéo faite par ceux qu'on attend (0 à 100), affichée aux autres.
+        readonly Dictionary<string, int> bufferProgress = new Dictionary<string, int>();
+        // Position du dernier qui a fini de charger, en pause sur sa réserve : tout le monde repart de là.
+        // Repartir de la position de l'hôte le faisait sauter en avant, hors de ce qu'il avait chargé : il rechargeait aussitôt.
+        double? resumeAt;
 
         public bool IsLoading(string who) { lock (waitGate) return bufferingSince.ContainsKey(who) || opening.Contains(who); }
         public bool IsNotWaited(string who) { lock (waitGate) return dontWait.Contains(who); }
@@ -28,14 +34,29 @@ namespace StremioWT
             StateChanged?.Invoke();
         }
 
-        void OnBuffer(string who, bool on)
+        void OnBuffer(string who, bool on, Dictionary<string, object> msg = null)
         {
+            object v = null;
+            bool known;
             lock (waitGate)
             {
-                if (on && !bufferingSince.ContainsKey(who)) bufferingSince[who] = DateTime.UtcNow;
-                else if (!on) { bufferingSince.Remove(who); opening.Remove(who); }
+                known = bufferingSince.ContainsKey(who);
+                if (on && !known) bufferingSince[who] = DateTime.UtcNow;
+                if (on && msg != null && msg.TryGetValue("progress", out v) && v != null)
+                    bufferProgress[who] = (int)Math.Max(0, Math.Min(100, Convert.ToDouble(v)));
+                if (!on)
+                {
+                    bool waited = known && waitingNow && !dontWait.Contains(who);
+                    bufferingSince.Remove(who); opening.Remove(who); bufferProgress.Remove(who);
+                    if (waited && msg != null && msg.TryGetValue("time", out v) && v != null)
+                    {
+                        var t = Convert.ToDouble(v);
+                        if (!double.IsNaN(t) && !double.IsInfinity(t) && t >= 0) resumeAt = t;
+                    }
+                }
             }
-            Program.Log($"{who} {(on ? "charge" : "a fini de charger")}");
+            // Simple progression d'un chargement déjà connu : pas de ligne de journal à chaque fois.
+            if (!(on && known)) Program.Log($"{who} {(on ? "charge" : "a fini de charger")}" + (!on && msg != null && msg.ContainsKey("time") ? $" (réserve faite, à {Convert.ToDouble(msg["time"]) / 1000:0}s)" : ""));
             if (isHost) _ = UpdateWait();
             StateChanged?.Invoke();
         }
@@ -79,30 +100,41 @@ namespace StremioWT
             try
             {
                 string[] active;
-                lock (waitGate) active = bufferingSince.Keys.Union(opening).Where(n => !dontWait.Contains(n)).Distinct().OrderBy(n => n).ToArray();
+                Dictionary<string, object> progress;
+                lock (waitGate)
+                {
+                    active = bufferingSince.Keys.Union(opening).Where(n => !dontWait.Contains(n)).Distinct().OrderBy(n => n).ToArray();
+                    progress = active.Where(bufferProgress.ContainsKey).ToDictionary(n => n, n => (object)bufferProgress[n]);
+                }
                 if (active.Length > 0)
                 {
                     if (!waitingNow)
                     {
                         var st = await PageState();
                         pausedBeforeWait = st != null && st.TryGetValue("paused", out var p) && p is bool pb && pb;
-                        waitingNow = true;
+                        lock (waitGate) { waitingNow = true; resumeAt = null; }
                     }
-                    if (!active.SequenceEqual(waitNames))
+                    var shown = string.Join(",", active) + "|" + string.Join(",", progress.Select(kv => kv.Key + "=" + kv.Value));
+                    if (shown != waitShown)
                     {
                         waitNames = active;
-                        var wait = new Dictionary<string, object> { ["type"] = "wait", ["names"] = active };
+                        waitShown = shown;
+                        var wait = new Dictionary<string, object> { ["type"] = "wait", ["names"] = active, ["progress"] = progress };
                         await Post(wait);
-                        ShowWait(active);
+                        ShowWait(active, progress);
                     }
                 }
                 else if (waitingNow)
                 {
-                    waitingNow = false;
+                    double? from;
+                    lock (waitGate) { waitingNow = false; from = resumeAt; resumeAt = null; }
                     waitNames = new string[0];
+                    waitShown = "";
                     var st = await PageState();
                     var go = new Dictionary<string, object> { ["type"] = "go", ["paused"] = pausedBeforeWait };
                     if (st != null) { go["time"] = st["time"]; go["hash"] = st["hash"]; }
+                    // Tout le monde est en pause sur ce qu'il a chargé : on se cale au plus près sur celui qu'on attendait.
+                    if (from != null) { go["time"] = from.Value; go["exact"] = true; }
                     Console.WriteLine("Tout le monde est prêt : reprise ensemble.");
                     await Post(go);
                     go["receivedAt"] = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalMilliseconds;
@@ -114,12 +146,17 @@ namespace StremioWT
         }
 
         // Affiche l'attente chez soi : « toi » à la place de son propre pseudo, et pas de pause si c'est nous qu'on attend.
-        void ShowWait(IEnumerable<string> names)
+        void ShowWait(IEnumerable<string> names, IDictionary<string, object> progress = null)
         {
             var shown = names.Select(n => n == name ? "toi" : n).ToArray();
             bool mine = shown.Contains("toi");
-            Console.WriteLine(mine && shown.Length == 1 ? "Les autres t'attendent (chargement)…" : $"En attente de {string.Join(", ", shown)} (chargement)…");
-            ToPage(new Dictionary<string, object> { ["type"] = "wait", ["names"] = shown, ["mine"] = mine });
+            var pct = new Dictionary<string, object>();
+            if (progress != null)
+                foreach (var kv in progress)
+                    if (kv.Value != null) pct[kv.Key == name ? "toi" : kv.Key] = (int)Math.Max(0, Math.Min(100, Convert.ToDouble(kv.Value)));
+            if (pct.Count == 0)
+                Console.WriteLine(mine && shown.Length == 1 ? "Les autres t'attendent (chargement)…" : $"En attente de {string.Join(", ", shown)} (chargement)…");
+            ToPage(new Dictionary<string, object> { ["type"] = "wait", ["names"] = shown, ["mine"] = mine, ["progress"] = pct });
         }
     }
 }
