@@ -6,8 +6,9 @@ namespace StremioWT
     {
         internal static (string Icon, string Title, string Body)[] Items => new[]
         {
-            ("🛠️", L.T("Plus stable"), L.T("Une connexion lente ne coupe plus la lecture toutes les quelques secondes, et on peut de nouveau taper le code du salon dans Stremio.")),
-            ("🍎", L.T("Bug du port 9333 corrigé sur Mac"), L.T("Fini l'erreur « port 9333 déjà utilisé » : si le navigateur est resté ouvert, StremioWT y rouvre simplement Stremio.")),
+            ("🎰", L.T("Roulette à votre façon"), L.T("Choisis tes genres, ou faites votre liste : tout le salon cherche et ajoute des films, avec un aperçu de chacun.")),
+            ("🎬", L.T("Rien devant le film"), L.T("Pendant le film, le bandeau Watch Together se cache avec les commandes de Stremio et revient dès que tu bouges la souris.")),
+            ("🖱️", L.T("Le bouton où tu veux"), L.T("Le bouton Watch Together se déplace où tu veux : clique dessus et fais-le glisser, il garde sa place.")),
         };
     }
 }

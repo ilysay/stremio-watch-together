@@ -1,6 +1,6 @@
 <Project>
-  <!-- Version de l'appli : dans un salon, tout le monde doit avoir la même « majeure.mineure ». -->
+  <!-- Version commune aux éditions Windows et Linux : dans un salon, tout le monde doit avoir la même « majeure.mineure ». -->
   <PropertyGroup>
-    <Version>4.1.1</Version>
+    <Version>4.2.0</Version>
   </PropertyGroup>
 </Project>

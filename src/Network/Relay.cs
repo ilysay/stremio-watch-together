@@ -20,7 +20,7 @@ namespace StremioWT
         public string HostId;
         static readonly string[] ControlTypes = { "open", "play", "pause", "seek" };
         static readonly string[] HostOnlyTypes = { "admin", "wait", "go", "roulette-ask", "roulette-check", "roulette-spin", "roulette-open", "roulette-error",
-            "roulette-vote-open", "roulette-votes", "roulette-vetoed", "roulette-request" };
+            "roulette-vote-open", "roulette-votes", "roulette-vetoed", "roulette-request", "roulette-list", "roulette-list-clear" };
 
         const int MaxClientsPerRoom = 20;
         const int MaxQueue = 200;
@@ -184,7 +184,7 @@ namespace StremioWT
                         await Respond(s, "204 No Content");
                         return;
                     }
-                    if (msgType == "chat" || msgType == "roulette-react")
+                    if (msgType == "chat" || msgType == "roulette-react" || msgType == "roulette-list-add" || msgType == "roulette-list-remove")
                     {
                         bool flood;
                         lock (gate)

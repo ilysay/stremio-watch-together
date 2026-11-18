@@ -24,7 +24,9 @@ namespace StremioWT
         readonly HashSet<string> refusedFilms = new HashSet<string>(); // refusés ce soir (veto, vote) : plus proposés
         readonly HashSet<string> vetoUsed = new HashSet<string>(); // une seule fois par personne et par soirée
         readonly Dictionary<string, bool> votes = new Dictionary<string, bool>();
-        (string mode, bool battle, bool mystery) lastOptions = (RouletteMode.Classic, false, false);
+        // Source des films : « taste » (le mélange des goûts, comme avant), « genres » (genres choisis), « list » (Notre liste).
+        const string FromTaste = "taste", FromGenres = "genres", FromList = "list";
+        (string mode, bool battle, bool mystery, string source, List<string> genres) lastOptions = (RouletteMode.Classic, false, false, FromTaste, new List<string>());
         string winnerId, winnerName;
         int voteRound; // tirage dont le vote est ouvert (0 : aucun)
         TasteProfile myTaste;
@@ -37,10 +39,18 @@ namespace StremioWT
             if (isHost) _ = Task.Run(() => RunRoulette(name, Options(msg)));
         }
 
-        static (string mode, bool battle, bool mystery) Options(Dictionary<string, object> msg) =>
-            (RouletteMode.Check(msg.TryGetValue("mode", out var m) ? m as string : null),
-             msg.TryGetValue("battle", out var b) && b is bool bb && bb,
-             msg.TryGetValue("mystery", out var y) && y is bool yb && yb);
+        static (string mode, bool battle, bool mystery, string source, List<string> genres) Options(Dictionary<string, object> msg)
+        {
+            var source = msg.TryGetValue("source", out var so) ? so as string : null;
+            var genres = ((msg.TryGetValue("genres", out var g) ? g as System.Collections.ArrayList : null) ?? new System.Collections.ArrayList())
+                .OfType<string>().Where(Taste.Genres.Contains).Distinct().Take(Taste.MaxChosenGenres).ToList();
+            if (source == FromGenres && genres.Count == 0) source = FromTaste;
+            if (source != FromGenres && source != FromList) source = FromTaste;
+            return (source == FromList ? RouletteMode.Classic : RouletteMode.Check(msg.TryGetValue("mode", out var m) ? m as string : null),
+                    msg.TryGetValue("battle", out var b) && b is bool bb && bb,
+                    msg.TryGetValue("mystery", out var y) && y is bool yb && yb,
+                    source, source == FromGenres ? genres : new List<string>());
+        }
 
         async Task<TasteProfile> MyTaste()
         {
@@ -55,7 +65,7 @@ namespace StremioWT
             return myTaste;
         }
 
-        async Task RunRoulette(string by, (string mode, bool battle, bool mystery) options)
+        async Task RunRoulette(string by, (string mode, bool battle, bool mystery, string source, List<string> genres) options)
         {
             if (Interlocked.Exchange(ref rouletteBusy, 1) == 1) return;
             try
@@ -67,44 +77,67 @@ namespace StremioWT
                     roomTastes.Clear(); seenAnswered.Clear(); seenByRoom.Clear(); votes.Clear();
                     voteRound = 0; lastOptions = options;
                 }
-                Program.Log($"roulette : lancée par {by} (mode {options.mode}{(options.battle ? ", battle royale" : "")}{(options.mystery ? ", mystère" : "")})");
+                Program.Log($"roulette : lancée par {by} (mode {options.mode}, source {options.source} {string.Join("/", options.genres)}{(options.battle ? ", battle royale" : "")}{(options.mystery ? ", mystère" : "")})");
                 _ = Post(new Dictionary<string, object> { ["type"] = "roulette-ask", ["round"] = round, ["by"] = by });
                 ToPage(new Dictionary<string, object> { ["type"] = "roulette-wait", ["by"] = by == name ? L.T("toi") : by });
 
-                var mine = await MyTaste();
-                var others = members.Where(m => m != name).ToList();
-                // Goûts des autres : on attend tout le monde, 8 s au plus (une ancienne version ne répondrait jamais).
-                await WaitFor(() => { lock (rouletteGate) return others.All(roomTastes.ContainsKey); }, TasteWaitMs);
                 Dictionary<string, TasteProfile> byName;
-                lock (rouletteGate) byName = new Dictionary<string, TasteProfile>(roomTastes) { [name] = mine };
-                var answered = byName.Keys.Where(n => n != name).ToList();
-                var (combined, avoided) = Taste.Merge(byName.Values);
+                List<string> top;
+                List<RouletteFilm> shortlist;
                 var rng = new Random(Guid.NewGuid().GetHashCode());
-                // Les deux genres les plus partagés, et un troisième pris au hasard parmi les suivants : d'un tirage à l'autre,
-                // la roue explore aussi les goûts secondaires du salon.
-                var ordered = Taste.TopGenres(combined, 6);
-                var top = ordered.Take(2).Concat(ordered.Skip(2).OrderBy(_ => rng.Next()).Take(1)).ToList();
-                Program.Log($"roulette : {byName.Count} profil(s), genres communs : {string.Join(", ", top)}" + (avoided.Count > 0 ? $" ; écartés : {string.Join(", ", avoided)}" : ""));
-
-                HashSet<string> excluded;
-                lock (rouletteGate) excluded = new HashSet<string>(myHistory.Concat(refusedFilms));
-                var ranked = Taste.Rank(await Taste.Candidates(top, rng, options.mode), combined, avoided, excluded, options.mode);
-                // Thème sans aucun film (catalogue lent, tout déjà vu…) : on tire plutôt en classique que de ne rien proposer.
-                if (ranked.Count == 0 && options.mode != RouletteMode.Classic)
+                if (options.source == FromList)
                 {
-                    Program.Log($"roulette : aucun film pour le mode {options.mode}, tirage classique à la place");
-                    options.mode = RouletteMode.Classic;
-                    ranked = Taste.Rank(await Taste.Candidates(top, rng), combined, avoided, excluded);
+                    // Notre liste : les films choisis par le salon, sans goûts ni « déjà vu » (choisis exprès).
+                    // Seuls ceux refusés ce soir (vote, veto) sont écartés, tant qu'il en reste d'autres.
+                    byName = new Dictionary<string, TasteProfile>();
+                    top = new List<string>();
+                    HashSet<string> refused;
+                    lock (rouletteGate) refused = new HashSet<string>(refusedFilms);
+                    var all = RouletteList.Load();
+                    shortlist = all.Where(f => !refused.Contains(f.Id)).Select(f => f.ToFilm()).OrderBy(_ => rng.Next()).ToList();
+                    if (shortlist.Count == 0) shortlist = all.Select(f => f.ToFilm()).OrderBy(_ => rng.Next()).ToList();
+                    if (shortlist.Count == 0) throw new Exception("liste vide");
                 }
-                if (ranked.Count == 0) throw new Exception("catalogue vide");
-                var shortlist = ranked.Take(ShortlistSize).ToList();
-
-                // Déjà vus par les autres : chacun répond seulement pour ces films.
-                if (answered.Count > 0)
+                else
                 {
-                    _ = Post(new Dictionary<string, object> { ["type"] = "roulette-check", ["round"] = round, ["ids"] = shortlist.Select(f => f.Id).ToList() });
-                    await WaitFor(() => { lock (rouletteGate) return answered.All(seenAnswered.Contains); }, SeenWaitMs);
-                    lock (rouletteGate) { var unseen = shortlist.Where(f => !seenByRoom.Contains(f.Id)).ToList(); if (unseen.Count > 0) shortlist = unseen; }
+                    var mine = await MyTaste();
+                    var others = members.Where(m => m != name).ToList();
+                    // Goûts des autres : on attend tout le monde, 8 s au plus (une ancienne version ne répondrait jamais).
+                    await WaitFor(() => { lock (rouletteGate) return others.All(roomTastes.ContainsKey); }, TasteWaitMs);
+                    lock (rouletteGate) byName = new Dictionary<string, TasteProfile>(roomTastes) { [name] = mine };
+                    var answered = byName.Keys.Where(n => n != name).ToList();
+                    var (combined, avoided) = Taste.Merge(byName.Values);
+                    // Les deux genres les plus partagés, et un troisième pris au hasard parmi les suivants : d'un tirage à l'autre,
+                    // la roue explore aussi les goûts secondaires du salon.
+                    var ordered = Taste.TopGenres(combined, 6);
+                    top = options.source == FromGenres ? options.genres : ordered.Take(2).Concat(ordered.Skip(2).OrderBy(_ => rng.Next()).Take(1)).ToList();
+                    Program.Log($"roulette : {byName.Count} profil(s), genres communs : {string.Join(", ", top)}" + (avoided.Count > 0 ? $" ; écartés : {string.Join(", ", avoided)}" : ""));
+
+                    HashSet<string> excluded;
+                    lock (rouletteGate) excluded = new HashSet<string>(myHistory.Concat(refusedFilms));
+                    // Genres choisis : seuls les films d'au moins un de ces genres (les thèmes par année en ramènent d'autres),
+                    // et on ne rejette pas un genre choisi même si l'historique de quelqu'un l'évite.
+                    var chosen = new HashSet<string>(options.genres);
+                    Func<List<RouletteFilm>, List<RouletteFilm>> inChosen = l => chosen.Count == 0 ? l : l.Where(f => f.Genres.Any(chosen.Contains)).ToList();
+                    if (chosen.Count > 0) avoided = new HashSet<string>(avoided.Where(a => !chosen.Contains(a)));
+                    var ranked = inChosen(Taste.Rank(await Taste.Candidates(top, rng, options.mode), combined, avoided, excluded, options.mode));
+                    // Thème sans aucun film (catalogue lent, tout déjà vu…) : on tire plutôt en classique que de ne rien proposer.
+                    if (ranked.Count == 0 && options.mode != RouletteMode.Classic)
+                    {
+                        Program.Log($"roulette : aucun film pour le mode {options.mode}, tirage classique à la place");
+                        options.mode = RouletteMode.Classic;
+                        ranked = inChosen(Taste.Rank(await Taste.Candidates(top, rng), combined, avoided, excluded));
+                    }
+                    if (ranked.Count == 0) throw new Exception("catalogue vide");
+                    shortlist = ranked.Take(ShortlistSize).ToList();
+
+                    // Déjà vus par les autres : chacun répond seulement pour ces films.
+                    if (answered.Count > 0)
+                    {
+                        _ = Post(new Dictionary<string, object> { ["type"] = "roulette-check", ["round"] = round, ["ids"] = shortlist.Select(f => f.Id).ToList() });
+                        await WaitFor(() => { lock (rouletteGate) return answered.All(seenAnswered.Contains); }, SeenWaitMs);
+                        lock (rouletteGate) { var unseen = shortlist.Where(f => !seenByRoom.Contains(f.Id)).ToList(); if (unseen.Count > 0) shortlist = unseen; }
+                    }
                 }
 
                 HashSet<string> recent;
@@ -125,8 +158,14 @@ namespace StremioWT
                 int final = options.battle ? picks[Enumerable.Range(0, picks.Count).First(i => !eliminated.Contains(i))] : picks[0];
                 var winner = items[final];
                 // Chaque tirage montre 12 affiches prises parmi les films, dont celle où il s'arrête.
-                var reels = picks.Select(pick => items.Select((f, i) => i).Where(i => i != pick).OrderBy(_ => rng.Next()).Take(ReelSize - 1)
-                    .Concat(new[] { pick }).OrderBy(_ => rng.Next()).ToList()).ToList();
+                // Avec peu de films (Notre liste), les affiches se répètent pour remplir la roue.
+                var reels = picks.Select(pick =>
+                {
+                    var others = items.Select((f, i) => i).Where(i => i != pick).OrderBy(_ => rng.Next()).ToList();
+                    var reel = new List<int>();
+                    for (int k = 0; others.Count > 0 && reel.Count < ReelSize - 1; k++) reel.Add(others[k % others.Count]);
+                    return reel.Concat(new[] { pick }).OrderBy(_ => rng.Next()).ToList();
+                }).ToList();
 
                 var compat = new List<Dictionary<string, object>>();
                 var valid = byName.Where(kv => kv.Value.Titles >= Taste.MinTitles).OrderBy(kv => kv.Key, StringComparer.Ordinal).ToList();
@@ -148,7 +187,8 @@ namespace StremioWT
                     ["picks"] = picks,
                     ["eliminated"] = eliminated,
                     ["winner"] = final,
-                    ["common"] = options.mode == RouletteMode.Classic ? top : new List<string>(),
+                    ["common"] = options.mode == RouletteMode.Classic || options.source == FromGenres ? top : new List<string>(),
+                    ["source"] = options.source,
                     ["compat"] = compat.OrderByDescending(c => (int)c["pct"]).Take(4).ToList(),
                     ["fits"] = byName.Count > 1 ? Taste.BestFit(byName, winner) : null,
                     ["vetoUsed"] = vetoes,
@@ -162,7 +202,8 @@ namespace StremioWT
                 await Post(spin);
                 ToPage(ForMe(spin, true));
                 // Statistiques anonymes : le thème et les options du tour, et la taille du salon. Rien sur les films ni les gens.
-                _ = Telemetry.Send("roulette", byName.Count, options.mode + (options.battle ? "-battle" : "") + (options.mystery ? "-mystery" : ""));
+                _ = Telemetry.Send("roulette", Math.Max(1, members.Count), (options.source == FromList ? "list" : options.mode)
+                    + (options.source == FromGenres ? "-genres" : "") + (options.battle ? "-battle" : "") + (options.mystery ? "-mystery" : ""));
                 // Si la page de l'hôte ne signale pas la fin de l'animation (Stremio fermé…), le vote s'ouvre quand même.
                 _ = Task.Delay(options.battle ? 60000 : 30000).ContinueWith(_ => OpenVote(round));
             }
@@ -268,6 +309,8 @@ namespace StremioWT
             var open = new Dictionary<string, object> { ["type"] = "roulette-open", ["id"] = id, ["name"] = film };
             _ = Post(open);
             OnRouletteOpen(id, film);
+            // Film de Notre liste tiré et lancé : il en sort.
+            if (RouletteList.Contains(id)) RemoveFromList(id);
         }
 
         void OnRouletteOpen(string id, string film)
@@ -299,6 +342,7 @@ namespace StremioWT
 
         void OnRoulettePage(string type, Dictionary<string, object> msg)
         {
+            if (type.StartsWith("roulette-list")) { OnRouletteListPage(type, msg); return; }
             int round;
             lock (rouletteGate) round = rouletteRound;
             switch (type)
@@ -328,6 +372,7 @@ namespace StremioWT
         // Le relais ne laisse passer que ceux de l'hôte pour request/ask/check/spin/vote-open/votes/vetoed/open/error.
         void OnRouletteMessage(string type, Dictionary<string, object> msg)
         {
+            if (type.StartsWith("roulette-list")) { OnRouletteListMessage(type, msg); return; }
             var from = msg.TryGetValue("from", out var f) ? f as string ?? "?" : "?";
             int round = msg.TryGetValue("round", out var r) && r != null ? Convert.ToInt32(r) : 0;
             switch (type)

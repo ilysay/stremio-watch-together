@@ -22,9 +22,9 @@
 
 const EVENTS = ['launch', 'host', 'join', 'error', 'session', 'optout', 'roulette'];
 // Roulette : thème choisi, puis options (« nanar-battle-mystery »). Envoyé par l'hôte à chaque tour de roue.
-const ROULETTE = /^(classic|horror|nanar|90s|gem|short)(-battle)?(-mystery)?$/;
-const ROULETTE_NAMES = { classic: 'Goûts mélangés', horror: 'Horreur', nanar: 'Nanar', '90s': 'Années 90', gem: 'Pépite cachée', short: 'Moins de 1 h 40' };
-const rouletteName = d => ROULETTE_NAMES[d.split('-')[0]] + (d.includes('-battle') ? ' · battle royale' : '') + (d.includes('-mystery') ? ' · affiches cachées' : '');
+const ROULETTE = /^(classic|horror|nanar|90s|gem|short|list)(-genres)?(-battle)?(-mystery)?$/;
+const ROULETTE_NAMES = { classic: 'Goûts mélangés', horror: 'Horreur', nanar: 'Nanar', '90s': 'Années 90', gem: 'Pépite cachée', short: 'Moins de 1 h 40', list: 'Notre liste' };
+const rouletteName = d => ROULETTE_NAMES[d.split('-')[0]] + (d.includes('-genres') ? ' · genres choisis' : '') + (d.includes('-battle') ? ' · battle royale' : '') + (d.includes('-mystery') ? ' · affiches cachées' : '');
 // Valeurs acceptées pour chaque détail : tout le reste est refusé (rien de libre ne peut être envoyé).
 const ERRORS = ['stremio-missing', 'stremio-noreply', 'tunnel', 'room-unreachable', 'version', 'room-full', 'crash'];
 const DURATIONS = ['0-5m', '5-30m', '30-60m', '1-2h', '2-3h', '3h+'];

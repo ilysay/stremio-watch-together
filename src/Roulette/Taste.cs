@@ -265,6 +265,20 @@ namespace StremioWT
                 .Select(ToFilm).Where(f => f != null).ToList();
         }
 
+        // Fiche d'un film (pour « Notre liste ») : l'hôte la prend lui-même dans le catalogue de Stremio, à partir du seul
+        // identifiant envoyé par un membre. Ni nom ni affiche ne viennent donc d'un autre membre.
+        internal static async Task<RouletteFilm> Film(string id)
+        {
+            if (id == null || !Regex.IsMatch(id, @"^tt\d{1,10}$")) return null;
+            var res = await Get($"{Cinemeta}/meta/movie/{id}.json", 8000);
+            return res != null && res.TryGetValue("meta", out var m) && m is Dictionary<string, object> meta ? ToFilm(meta) : null;
+        }
+
+        // Genres du catalogue de Stremio qu'on peut choisir pour la roulette « Mes genres ».
+        internal static readonly string[] Genres = { "Action", "Adventure", "Animation", "Biography", "Comedy", "Crime", "Documentary", "Drama", "Family",
+            "Fantasy", "History", "Horror", "Mystery", "Romance", "Sci-Fi", "Sport", "Thriller", "War", "Western" };
+        internal const int MaxChosenGenres = 4;
+
         internal static RouletteFilm ToFilm(Dictionary<string, object> m)
         {
             var id = m.TryGetValue("id", out var i) ? i as string : null;

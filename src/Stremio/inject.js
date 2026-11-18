@@ -436,6 +436,11 @@
   const typingElsewhere = () => { const a = document.activeElement; return a && !(chatInputWrap && chatInputWrap.contains(a)) && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable); };
   ['keydown', 'keypress', 'keyup'].forEach(type => window.addEventListener(type, e => {
     // Champs du panneau Watch Together : les raccourcis de Stremio ne doivent pas réagir à la frappe.
+    if (rouletteEl && rouletteEl.contains(document.activeElement) && document.activeElement.tagName === 'INPUT') {
+      e.stopImmediatePropagation();
+      if (type === 'keydown' && e.key === 'Escape') document.activeElement.blur();
+      return;
+    }
     if (panelEl && panelEl.contains(document.activeElement)) {
       e.stopImmediatePropagation();
       if (type === 'keydown' && e.key === 'Enter' && document.activeElement.wtEnter) { e.preventDefault(); document.activeElement.wtEnter(); }
@@ -477,6 +482,7 @@
     if (msg.type === 'roulette-vetoed') return rouletteVetoed(msg);
     if (msg.type === 'roulette-react') return floatEmoji(msg.e, msg.from);
     if (msg.type === 'roulette-feedback-ask') return rouletteFeedback(msg.name);
+    if (msg.type === 'roulette-list') return rouletteListUpdate(msg);
     if (msg.type === 'wait') {
       const pct = n => msg.progress && msg.progress[n] > 0 ? n + ' ' + msg.progress[n] + ' %' : n;
       if (msg.mine) {
@@ -766,26 +772,46 @@
     bannerEl.style.display = 'none';
     wake();
   }
+  // Pendant le film, le bandeau et le bouton Watch Together disparaissent avec les commandes de Stremio
+  // (souris immobile 3 s) et reviennent au moindre mouvement. Ils restent affichés tant qu'il se passe
+  // quelque chose : message d'attente, notification, panneau ouvert, souris sur le bouton.
+  // Hors lecture, comme avant : le bandeau s'estompe un peu après 5 s, le bouton reste.
+  let idle = false, fabHover = false;
+  const busy = () => panelOpen || fabHover || (bannerEl && bannerEl.style.display === 'block') || (toastsEl && toastsEl.childElementCount > 0);
   function wake() {
     ensureUi();
+    idle = false;
     box.style.opacity = '1';
+    fadeFab();
     clearTimeout(fadeTimer);
+    const player = inPlayer();
     fadeTimer = setTimeout(() => {
-      if (!box || (bannerEl && bannerEl.style.display === 'block')) return;
-      box.style.opacity = inPlayer() ? '0.25' : '0.8';
-    }, 5000);
+      if (!box) return;
+      if (busy()) return wake(); // on revérifie plus tard (panneau fermé, message terminé)
+      if (player && inPlayer()) { idle = true; box.style.opacity = '0'; fadeFab(); }
+      else box.style.opacity = '0.8';
+    }, player ? 3000 : 5000);
   }
+  function fadeFab() {
+    if (fab && inPlayer()) fab.style.opacity = panelOpen || fabHover ? 1 : idle ? 0 : .55;
+  }
+  for (const ev of ['mousemove', 'mousedown', 'keydown', 'touchstart', 'wheel'])
+    window.addEventListener(ev, () => { if (box && (idle || inPlayer())) wake(); }, { capture: true, passive: true });
   function setStatus(s) {
     ensureUi();
     adminLock = !!s.admin && !s.host;
     roomSize = s.connected ? (s.members || []).length : 0;
     const dot = s.connected ? '#3ddc84' : '#ff5c5c';
+    const text = T('Watch Together · salon {0} · ', s.room) +
+      (s.connected ? T('{0} connecté(s) : {1}', (s.members || []).length, (s.members || []).join(', ')) : T('déconnecté, reconnexion…')) +
+      (s.admin ? T(' · hôte admin') : '');
+    // Réaffiché seulement si quelque chose change (arrivée, départ, connexion), pas à chaque envoi identique.
+    if (statusEl.dataset.text === text + dot) return;
+    statusEl.dataset.text = text + dot;
     statusEl.textContent = '';
     const d = document.createElement('span');
     d.style.cssText = 'display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:' + dot;
-    statusEl.append(d, document.createTextNode(T('Watch Together · salon {0} · ', s.room) +
-      (s.connected ? T('{0} connecté(s) : {1}', (s.members || []).length, (s.members || []).join(', ')) : T('déconnecté, reconnexion…')) +
-      (s.admin ? T(' · hôte admin') : '')));
+    statusEl.append(d, document.createTextNode(text));
     wake();
   }
   // Même épisode mais pas la même durée : ce n'est pas le même fichier (autre version, autre montage),
@@ -805,7 +831,7 @@
     t.textContent = text;
     t.style.cssText = 'background:rgba(0,0,0,.75);border-radius:8px;padding:4px 10px';
     toastsEl.appendChild(t);
-    setTimeout(() => t.remove(), duration);
+    setTimeout(() => { t.remove(); wake(); }, duration);
     wake();
   }
 
@@ -844,6 +870,7 @@
   box-shadow: 0 8px 28px rgba(0,0,0,.45); font-weight: 700; font-size: 14px; color: var(--wt-fg); transition: opacity .2s, box-shadow .2s, transform .2s, background .2s; }
 #wt-fab:hover, #wt-fab.open { box-shadow: 0 8px 28px rgba(0,0,0,.45), 0 0 18px rgba(123,91,245,.45); border-color: rgba(123,91,245,.6); }
 #wt-fab:active { transform: scale(.97); }
+#wt-fab.drag { cursor: grabbing; transition: none !important; transform: scale(1.04); }
 #wt-fab .wt-fab-ic { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--wt-accent); color: #fff; }
 #wt-fab .wt-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--wt-green); box-shadow: 0 0 8px var(--wt-green); }
 #wt-fab .wt-count { display: flex; align-items: center; color: var(--wt-muted); font-weight: 600; }
@@ -1052,6 +1079,58 @@
 #wt-roulette .wt-r-subicons { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; }
 #wt-roulette .wt-r-subicons > * { margin: 2px 10px; }
 #wt-roulette .wt-pick-hero > .wt-art { margin-right: 18px; }
+#wt-roulette .wt-src { display: flex; margin-top: 14px; padding: 4px; border-radius: 999px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); }
+#wt-roulette .wt-src-tab { height: 36px; padding: 0 20px; border: 0; border-radius: 999px; background: transparent; color: rgba(255,255,255,.75); font-size: 14px; font-weight: 700; cursor: pointer; transition: background .2s, color .2s; }
+#wt-roulette .wt-src-tab:hover { color: #fff; background: rgba(255,255,255,.08); }
+#wt-roulette .wt-src-tab.on { color: #fff; background: linear-gradient(90deg, #7b5bf5, #ff5c8a); box-shadow: 0 4px 16px rgba(123,91,245,.45); }
+#wt-roulette .wt-genres-box { display: flex; flex-direction: column; align-items: center; width: 680px; max-width: 92vw; margin-top: 6px; }
+#wt-roulette .wt-genres { display: flex; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+#wt-roulette .wt-genre { margin: 4px; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .2s, transform .12s; }
+#wt-roulette .wt-genre:hover { background: rgba(255,255,255,.12); transform: translateY(-1px); }
+#wt-roulette .wt-genre.on { border-color: transparent; background: linear-gradient(90deg, #7b5bf5, #ff5c8a); }
+#wt-roulette .wt-genre.shake { animation: wt-shake .35s; }
+@keyframes wt-shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+#wt-roulette .wt-pick-go:disabled { opacity: .4; cursor: default; animation: none; }
+#wt-roulette .wt-pick-why { margin-top: 8px; min-height: 18px; font-size: 13px; color: #ffc46b; }
+#wt-roulette .wt-list { display: flex; flex-direction: column; width: 760px; max-width: 92vw; margin-top: 14px; }
+#wt-roulette .wt-search { height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid rgba(255,255,255,.18); background: rgba(0,0,0,.35); color: #fff; font-size: 15px; outline: none; }
+#wt-roulette .wt-search:focus { border-color: rgba(123,91,245,.8); box-shadow: 0 0 0 3px rgba(123,91,245,.25); }
+#wt-roulette .wt-results { display: flex; overflow-x: auto; margin-top: 10px; padding-bottom: 6px; min-height: 0; }
+#wt-roulette .wt-results:empty { display: none; }
+#wt-roulette .wt-results .wt-hint { padding: 6px 4px; color: rgba(255,255,255,.6); font-size: 13px; }
+#wt-roulette .wt-res { flex: none; display: flex; flex-direction: column; width: 92px; margin-right: 8px; padding: 4px; border: 2px solid transparent; border-radius: 12px; background: transparent; color: #fff; cursor: pointer; text-align: left; }
+#wt-roulette .wt-res:hover, #wt-roulette .wt-res.sel { border-color: rgba(123,91,245,.8); background: rgba(123,91,245,.15); }
+#wt-roulette .wt-res-pic, #wt-roulette .wt-tile-pic { width: 100%; aspect-ratio: 2 / 3; border-radius: 8px; background: rgba(255,255,255,.08) center / cover no-repeat; }
+#wt-roulette .wt-res.in .wt-res-pic { box-shadow: inset 0 0 0 3px #22b365; }
+#wt-roulette .wt-res-name { margin-top: 4px; font-size: 12px; font-weight: 700; line-height: 1.2; max-height: 2.4em; overflow: hidden; }
+#wt-roulette .wt-res-year { font-size: 11px; color: rgba(255,255,255,.55); }
+#wt-roulette .wt-preview { display: none; margin-top: 10px; padding: 14px; border-radius: 16px; background: rgba(15,13,32,.75); border: 1px solid rgba(123,91,245,.4); text-align: left; }
+#wt-roulette .wt-preview.on { display: flex; }
+#wt-roulette .wt-prev-pic { flex: none; width: 110px; aspect-ratio: 2 / 3; border-radius: 10px; margin-right: 16px; background: rgba(255,255,255,.08) center / cover no-repeat; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+#wt-roulette .wt-prev-info { display: flex; flex-direction: column; min-width: 0; }
+#wt-roulette .wt-prev-name { font-size: 19px; font-weight: 800; }
+#wt-roulette .wt-prev-meta { margin-top: 4px; font-size: 13px; color: #ffd76b; font-weight: 600; }
+#wt-roulette .wt-prev-desc { margin-top: 8px; font-size: 13px; line-height: 1.4; color: rgba(255,255,255,.82); display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+#wt-roulette .wt-prev-btns { display: flex; flex-wrap: wrap; margin-top: auto; padding-top: 10px; }
+#wt-roulette .wt-prev-btns button { height: 36px; margin: 0 8px 0 0; padding: 0 16px; border: 0; border-radius: 999px; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; }
+#wt-roulette .wt-prev-add { background: linear-gradient(90deg, #7b5bf5, #ff5c8a); }
+#wt-roulette .wt-prev-add:disabled { cursor: default; opacity: .6; }
+#wt-roulette .wt-prev-add.done { background: #22b365; opacity: 1; }
+#wt-roulette .wt-prev-trailer { background: rgba(255,255,255,.12); }
+#wt-roulette .wt-list-head { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-size: 14px; font-weight: 800; }
+#wt-roulette .wt-list-clear { height: 28px; padding: 0 12px; border: 1px solid rgba(255,92,92,.5); border-radius: 999px; background: transparent; color: #ff8a8a; font-size: 12px; font-weight: 700; cursor: pointer; }
+#wt-roulette .wt-list-grid { display: flex; flex-wrap: wrap; max-height: 230px; overflow-y: auto; margin-top: 6px; }
+#wt-roulette .wt-list-grid .wt-hint { padding: 10px 0; color: rgba(255,255,255,.6); font-size: 13px; }
+#wt-roulette .wt-tile { position: relative; display: flex; flex-direction: column; width: 84px; margin: 4px 8px 4px 0; cursor: pointer; }
+#wt-roulette .wt-tile-x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border: 0; border-radius: 50%; background: rgba(0,0,0,.7); color: #fff; font-size: 11px; cursor: pointer; opacity: 0; transition: opacity .15s; }
+#wt-roulette .wt-tile:hover .wt-tile-x { opacity: 1; }
+#wt-roulette .wt-tile-name { margin-top: 3px; font-size: 11px; font-weight: 700; line-height: 1.2; max-height: 2.4em; overflow: hidden; }
+#wt-roulette .wt-tile-by { font-size: 10px; color: rgba(255,255,255,.5); }
+#wt-roulette.picker .wt-r-body { max-height: 100vh; overflow-y: auto; justify-content: flex-start; padding-top: 30px; }
+#wt-panel .wt-rlist { display: flex; align-items: center; justify-content: center; width: 100%; height: 40px; margin-top: 8px; border: 1px solid rgba(255,255,255,.14); border-radius: 12px; background: rgba(255,255,255,.06); color: var(--wt-fg); font-weight: 700; font-size: 14px; cursor: pointer; }
+#wt-panel .wt-rlist:hover { background: rgba(255,255,255,.12); }
+#wt-panel .wt-rlist span { font-size: inherit; }
+#wt-panel .wt-rlist .wt-art { margin-right: 8px; }
 #wt-roulette .wt-pick-hero-theme { display: flex; align-items: center; }
 #wt-roulette .wt-theme, #wt-roulette .wt-opt { display: inline-flex; align-items: center; }
 #wt-roulette .wt-theme > .wt-art { margin: 0 6px 0 -4px; }
@@ -1157,9 +1236,69 @@
     if (fab && document.body.contains(fab)) return;
     fab = make('button');
     fab.id = 'wt-fab';
-    fab.onclick = e => { e.stopPropagation(); panelOpen = !panelOpen; renderPanel(); };
+    // Un glisser-déposer déplace le bouton ; seul un vrai clic (sans déplacement) ouvre ou ferme le panneau.
+    fab.onclick = e => { e.stopPropagation(); if (Date.now() - fabDraggedAt < 400) return; panelOpen = !panelOpen; renderPanel(); };
+    fab.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      const r = fab.getBoundingClientRect();
+      fabDrag = { dx: e.clientX - r.left, dy: e.clientY - r.top, x0: e.clientX, y0: e.clientY, moved: false };
+    });
+    fab.addEventListener('mousedown', e => e.stopPropagation());
     document.body.appendChild(fab);
     placeFab();
+  }
+
+  // Position du bouton choisie à la souris, retenue sur ce PC : une pendant le film, une hors lecture.
+  // Gardée en fraction de l'écran (centre du bouton) pour rester au même endroit quand la fenêtre change de taille.
+  let fabPos = {}, fabDrag = null, fabDraggedAt = 0;
+  try { fabPos = JSON.parse(localStorage.getItem('wt-fab-pos') || '{}') || {}; } catch (e) {}
+  const fabKey = () => inPlayer() ? 'player' : 'home';
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  function moveFab(left, top) {
+    const w = fab.offsetWidth, h = fab.offsetHeight;
+    fab.style.left = clamp(left, 8, innerWidth - w - 8) + 'px';
+    fab.style.top = clamp(top, 8, innerHeight - h - 8) + 'px';
+    fab.style.right = 'auto'; fab.style.bottom = 'auto';
+  }
+  function applyFabPos() {
+    const pos = fab && fabPos[fabKey()];
+    if (pos && isFinite(pos.x) && isFinite(pos.y)) moveFab(pos.x * innerWidth - fab.offsetWidth / 2, pos.y * innerHeight - fab.offsetHeight / 2);
+  }
+  window.addEventListener('pointermove', e => {
+    if (!fabDrag || !fab) return;
+    if (!fabDrag.moved && Math.hypot(e.clientX - fabDrag.x0, e.clientY - fabDrag.y0) < 6) return;
+    fabDrag.moved = true;
+    fab.classList.add('drag');
+    moveFab(e.clientX - fabDrag.dx, e.clientY - fabDrag.dy);
+    if (panelOpen) placePanel();
+  }, true);
+  window.addEventListener('pointerup', () => {
+    const d = fabDrag;
+    fabDrag = null;
+    if (!d || !d.moved || !fab) return;
+    fab.classList.remove('drag');
+    fabDraggedAt = Date.now();
+    const r = fab.getBoundingClientRect();
+    fabPos[fabKey()] = { x: (r.left + r.width / 2) / innerWidth, y: (r.top + r.height / 2) / innerHeight };
+    try { localStorage.setItem('wt-fab-pos', JSON.stringify(fabPos)); } catch (e) {}
+  }, true);
+  window.addEventListener('resize', () => { applyFabPos(); if (panelOpen) placePanel(); });
+
+  // Le panneau s'ouvre à côté du bouton : en dessous s'il est en haut de l'écran, au-dessus sinon,
+  // aligné sur son bord droit s'il est à droite. Sans position choisie, aux places habituelles.
+  function placePanel() {
+    if (!panelEl || panelEl.style.display === 'none') return;
+    const player = inPlayer();
+    Object.assign(panelEl.style, { top: '', bottom: '', left: '', right: '', maxHeight: '' });
+    if (!fab || !fabPos[fabKey()]) {
+      Object.assign(panelEl.style, player ? { top: '108px', right: '16px' } : { bottom: '84px', right: '24px' });
+      return;
+    }
+    const r = fab.getBoundingClientRect(), W = innerWidth, H = innerHeight, pw = Math.min(360, W - 16);
+    panelEl.style.left = clamp(r.left + r.width / 2 > W / 2 ? r.right - pw : r.left, 8, W - pw - 8) + 'px';
+    if (r.top + r.height / 2 < H / 2) { panelEl.style.top = (r.bottom + 10) + 'px'; panelEl.style.maxHeight = Math.max(200, H - r.bottom - 26) + 'px'; }
+    else { panelEl.style.bottom = (H - r.top + 10) + 'px'; panelEl.style.maxHeight = Math.max(200, r.top - 26) + 'px'; }
   }
   // Hors lecture : en bas à droite. Pendant un film : petit et discret en haut à droite, pour ne pas gêner les commandes.
   function placeFab() {
@@ -1171,11 +1310,13 @@
       fab.append(make('span', 'wt-dot'), make('span', null, s.room));
       fab.append(withIcon(make('span', 'wt-count'), 'user', String((s.members || []).length), 13));
     } else fab.append(make('span', null, 'Watch Together'));
-    fab.style.cssText = player ? 'top:64px;right:16px;opacity:' + (panelOpen ? 1 : .55) : 'bottom:24px;right:24px;padding:6px 18px 6px 6px';
-    fab.onmouseenter = () => { fab.style.opacity = 1; };
-    fab.onmouseleave = () => { if (inPlayer() && !panelOpen) fab.style.opacity = .55; };
+    fab.style.cssText = player ? 'top:64px;right:16px;transition:opacity .4s, box-shadow .2s, transform .2s, background .2s' : 'bottom:24px;right:24px;padding:6px 18px 6px 6px';
+    applyFabPos();
+    fadeFab();
+    fab.onmouseenter = () => { fabHover = true; fadeFab(); };
+    fab.onmouseleave = () => { fabHover = false; wake(); };
   }
-  window.addEventListener('hashchange', () => { placeFab(); if (panelOpen) renderPanel(); });
+  window.addEventListener('hashchange', () => { placeFab(); if (panelOpen) renderPanel(); if (box) wake(); });
 
   function renderPanel() {
     ensureStyle();
@@ -1188,7 +1329,8 @@
     }
     const player = inPlayer();
     const wasHidden = panelEl.style.display === 'none';
-    panelEl.style.cssText = (player ? 'top:108px;right:16px;' : 'bottom:84px;right:24px;') + (panelOpen && panelState ? '' : 'display:none');
+    panelEl.style.cssText = panelOpen && panelState ? '' : 'display:none';
+    placePanel();
     if (!panelOpen || !panelState) return;
     // L'animation d'ouverture ne rejoue qu'à l'ouverture, pas à chaque mise à jour.
     panelEl.style.animation = wasHidden || !panelEl.firstChild ? '' : 'none';
@@ -1220,8 +1362,11 @@
       big.append(art('wheel', 30), make('span', null, T('Lancer la roulette')));
       big.onclick = e => { e.stopPropagation(); panelOpen = false; renderPanel(); roulettePicker(); };
       // Seul l'hôte fait tourner la roue ; les invités la voient tourner chez eux.
-      if (s.host) rou.append(big, rouletteChoice('wt-hint wt-rchoice'));
-      else rou.append(make('div', 'wt-hint', T('Seul l\'hôte peut lancer la roulette.')));
+      const listBtn = make('button', 'wt-rlist');
+      listBtn.append(art('list', 20), make('span', null, T('Notre liste de films') + (rouletteList.known ? ' (' + rouletteList.films.length + ')' : '')));
+      listBtn.onclick = e => { e.stopPropagation(); panelOpen = false; renderPanel(); roulettePicker('list'); };
+      if (s.host) rou.append(big, rouletteChoice('wt-hint wt-rchoice'), listBtn);
+      else rou.append(make('div', 'wt-hint', T('Seul l\'hôte peut lancer la roulette, mais tout le monde peut ajouter des films à la liste.')), listBtn);
       panelEl.append(rou);
       if (s.host && s.code) {
         const inv = section('link', T('Inviter des amis'));
@@ -1401,6 +1546,14 @@
       <rect x="20" y="10" width="30" height="44" rx="5" fill="#2a2450" transform="rotate(12 35 32)"/>
       <rect x="14" y="10" width="30" height="44" rx="5" fill="url(#${p}m)" stroke="#fff" stroke-opacity=".5" stroke-width="1.5" transform="rotate(-8 29 32)"/>
       <text x="29" y="42" text-anchor="middle" font-family="Arial Black,Arial" font-weight="900" font-size="26" fill="#fff" transform="rotate(-8 29 32)">?</text>`,
+    // Notre liste : une feuille de films cochés, avec une étoile.
+    list: p => `
+      <defs><linearGradient id="${p}l" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff7aa8"/><stop offset="1" stop-color="#7b5bf5"/></linearGradient></defs>
+      <rect x="12" y="8" width="38" height="48" rx="7" fill="url(#${p}l)" stroke="#fff" stroke-opacity=".5" stroke-width="1.5"/>
+      <rect x="24" y="4" width="14" height="8" rx="3" fill="#2a2450" stroke="#fff" stroke-opacity=".6" stroke-width="1.2"/>
+      <path d="M18 22l3 3 5-6M18 33l3 3 5-6M18 44l3 3 5-6" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M30 22h14M30 33h14M30 44h10" stroke="#fff" stroke-opacity=".85" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M50 40l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" fill="#ffd76b" stroke="#2a2450" stroke-width="1.2"/>`,
   };
   let artId = 0;
   const art = (name, size) => { const e = document.createElement('span'); e.className = 'wt-art';
@@ -1414,12 +1567,19 @@
   const REACTIONS = ['🔥', '😂', '😱', '🤞', '😍', '💀', '👏', '🍿'];
   const CARD_W = 176; // largeur d'une affiche + ses marges
   // Choix gardés d'une fois sur l'autre sur ce PC (mode, battle royale, mystère, son).
-  const rouletteOpts = { mode: 'classic', battle: false, mystery: false, surprise: false, muted: false, bg: 'cinema' };
+  const rouletteOpts = { mode: 'classic', battle: false, mystery: false, surprise: false, muted: false, bg: 'cinema', source: 'taste', genres: [] };
   try { Object.assign(rouletteOpts, JSON.parse(localStorage.getItem('wt-roulette') || '{}')); } catch (e) {}
   const saveRouletteOpts = () => { try { localStorage.setItem('wt-roulette', JSON.stringify(rouletteOpts)); } catch (e) {} };
-  const launchRoulette = () => toNode(rouletteOpts.surprise
-    ? { type: 'roulette', mode: ['classic', 'horror', 'nanar', '90s', 'gem', 'short'][Math.floor(Math.random() * 6)], battle: Math.random() < 0.4, mystery: Math.random() < 0.4 }
-    : { type: 'roulette', mode: rouletteOpts.mode, battle: !!rouletteOpts.battle, mystery: !!rouletteOpts.mystery });
+  if (['taste', 'genres', 'list'].indexOf(rouletteOpts.source) < 0) rouletteOpts.source = 'taste';
+  if (!Array.isArray(rouletteOpts.genres)) rouletteOpts.genres = [];
+  // Source des films : « taste » (le mélange des goûts), « genres » (genres choisis, 4 au plus), « list » (Notre liste).
+  const rouletteSource = () => rouletteOpts.source === 'genres' && !rouletteOpts.genres.length ? 'taste' : rouletteOpts.source;
+  const launchRoulette = () => {
+    const source = rouletteSource(), extra = { source, genres: source === 'genres' ? rouletteOpts.genres.slice(0, 4) : [] };
+    toNode(Object.assign(rouletteOpts.surprise && source !== 'list'
+      ? { type: 'roulette', mode: ['classic', 'horror', 'nanar', '90s', 'gem', 'short'][Math.floor(Math.random() * 6)], battle: Math.random() < 0.4, mystery: Math.random() < 0.4 }
+      : { type: 'roulette', mode: rouletteOpts.mode, battle: !!rouletteOpts.battle, mystery: !!rouletteOpts.mystery }, extra));
+  };
 
   // Sons de la roue, fabriqués sur place (aucun fichier) : tic à chaque affiche, fanfare, élimination, veto.
   let audioCtx = null;
@@ -1479,10 +1639,11 @@
   // ---- Écran de sélection : de grandes cartes de mode, comme le menu d'un jeu ----
   // Le choix en cours, en icônes : le mélange des goûts, plus le thème et les réglages éventuels.
   function rouletteChoice(cls) {
-    const e = make('div', cls);
-    e.append(artLabel('popcorn', 18, T('Le mélange de vos goûts')));
+    const e = make('div', cls), source = rouletteSource();
+    if (source === 'list') { e.append(artLabel('list', 18, T('Notre liste ({0} films)', rouletteList.films.length))); }
+    else e.append(artLabel('popcorn', 18, source === 'genres' ? rouletteOpts.genres.map(genreName).join(', ') : T('Le mélange de vos goûts')));
     const m = rouletteOpts.surprise ? 'surprise' : rouletteOpts.mode;
-    if (m !== 'classic') e.append(make('span', 'wt-plus', '+'), artLabel(MODE_ART[m], 18, m === 'surprise' ? T('Surprise') : T(ROULETTE_MODES[m][1])));
+    if (m !== 'classic' && source !== 'list') e.append(make('span', 'wt-plus', '+'), artLabel(MODE_ART[m], 18, m === 'surprise' ? T('Surprise') : T(ROULETTE_MODES[m][1])));
     if (rouletteOpts.battle && !rouletteOpts.surprise) e.append(artLabel('swords', 18, T('Battle royale')));
     if (rouletteOpts.mystery && !rouletteOpts.surprise) e.append(artLabel('hidden', 18, T('Affiches cachées')));
     return e;
@@ -1497,11 +1658,24 @@
     card.addEventListener('mouseenter', () => sfx('hover'));
     card.addEventListener('mouseleave', () => { card.style.transform = ''; });
   }
-  function roulettePicker() {
+  function roulettePicker(startTab) {
+    const host = !!(panelState && panelState.host);
     const body = rouletteBody();
     rouletteEl.classList.add('picker');
-    body.append(artLabel('wheel', 46, 'Roulette', 'wt-r-title'));
-    // La base, toujours active : le mélange des goûts du salon.
+    if (!host) startTab = 'list';
+    if (startTab) { rouletteOpts.source = startTab; saveRouletteOpts(); }
+    body.append(artLabel('wheel', 46, host ? 'Roulette' : T('Notre liste'), 'wt-r-title'));
+    toNode({ type: 'roulette-list-get' });
+    listAsked = Date.now();
+    // Trois sources de films : le mélange des goûts (par défaut), des genres choisis, ou la liste faite par le salon.
+    const tabs = make('div', 'wt-src');
+    [['taste', T('Vos goûts')], ['genres', T('Mes genres')], ['list', T('Notre liste')]].forEach(([id, label]) => {
+      const t = make('button', 'wt-src-tab', label);
+      t.dataset.src = id;
+      t.onclick = () => { sfx('select'); rouletteOpts.source = id; saveRouletteOpts(); refresh(); };
+      tabs.append(t);
+    });
+    // Le mélange des goûts : la carte d'avant.
     const hero = make('div', 'wt-pick-hero');
     const heroTheme = make('div', 'wt-pick-hero-theme');
     const heroText = make('div', 'wt-pick-hero-text');
@@ -1509,7 +1683,26 @@
       make('div', 'wt-pick-tag', T('Un film au hasard parmi ceux qui plaisent à tout le monde, d\'après ce que chacun a déjà regardé.')), heroTheme);
     hero.append(art('popcorn', 84), heroText);
     tilt(hero);
+    // Mes genres : jusqu'à 4 genres, les goûts du salon trient toujours les films dedans.
+    const genres = make('div', 'wt-genres-box');
+    const genreGrid = make('div', 'wt-genres');
+    GENRES.forEach(g => {
+      const b = make('button', 'wt-genre', genreName(g));
+      b.dataset.genre = g;
+      b.onclick = () => {
+        const i = rouletteOpts.genres.indexOf(g);
+        if (i >= 0) rouletteOpts.genres.splice(i, 1);
+        else if (rouletteOpts.genres.length < 4) rouletteOpts.genres.push(g);
+        else { b.classList.remove('shake'); void b.offsetWidth; b.classList.add('shake'); return; }
+        sfx('select'); saveRouletteOpts(); refresh();
+      };
+      genreGrid.append(b);
+    });
+    genres.append(make('div', 'wt-themes-label', T('Choisis jusqu\'à 4 genres : la roue ne prend que des films de ces genres.')), genreGrid);
+    // Notre liste : recherche, prévisu, et les films ajoutés par le salon.
+    const list = rouletteListPane(host);
     // En option : un thème (un seul, désélectionnable) et deux petits réglages.
+    const themesLabel = make('div', 'wt-themes-label', T('Envie d\'un thème ? (facultatif)'));
     const themes = make('div', 'wt-themes');
     const theme = (mode, emoji, name) => {
       const t = make('button', 'wt-theme wt-theme-' + mode.replace(/\W/g, ''));
@@ -1535,22 +1728,35 @@
       o.dataset.opt = opt;
       o.title = hint;
       o.append(make('span', 'wt-pick-sw'));
-      o.onclick = () => { if (rouletteOpts.surprise) return; sfx('select'); rouletteOpts[opt] = !rouletteOpts[opt]; saveRouletteOpts(); refresh(); };
+      o.onclick = () => { if (rouletteOpts.surprise && rouletteOpts.source !== 'list') return; sfx('select'); rouletteOpts[opt] = !rouletteOpts[opt]; saveRouletteOpts(); refresh(); };
       opts.append(o);
     });
     const launch = make('button', 'wt-pick-go');
+    const why = make('div', 'wt-pick-why');
+    const show = (el, on) => { el.style.display = on ? '' : 'none'; };
     const refresh = () => {
-      const current = rouletteOpts.surprise ? 'surprise' : rouletteOpts.mode;
+      const src = rouletteOpts.source, surprise = rouletteOpts.surprise && src !== 'list';
+      tabs.querySelectorAll('.wt-src-tab').forEach(t => t.classList.toggle('on', t.dataset.src === src));
+      genreGrid.querySelectorAll('.wt-genre').forEach(b => b.classList.toggle('on', rouletteOpts.genres.indexOf(b.dataset.genre) >= 0));
+      const current = surprise ? 'surprise' : rouletteOpts.mode;
       themes.querySelectorAll('.wt-theme').forEach(t => t.classList.toggle('on', t.dataset.mode === current));
-      opts.querySelectorAll('.wt-opt').forEach(o => { o.classList.toggle('on', !!rouletteOpts[o.dataset.opt]); o.classList.toggle('off', !!rouletteOpts.surprise); });
+      opts.querySelectorAll('.wt-opt').forEach(o => { o.classList.toggle('on', !!rouletteOpts[o.dataset.opt]); o.classList.toggle('off', surprise); });
       const m = ROULETTE_MODES[rouletteOpts.mode];
       heroTheme.textContent = '';
-      const cur = rouletteOpts.surprise ? 'surprise' : rouletteOpts.mode;
-      if (cur !== 'classic') heroTheme.append(make('span', 'wt-plus', '+'), artLabel(MODE_ART[cur], 22, cur === 'surprise' ? T('Surprise') : T(m[1])));
+      if (current !== 'classic') heroTheme.append(make('span', 'wt-plus', '+'), artLabel(MODE_ART[current], 22, current === 'surprise' ? T('Surprise') : T(m[1])));
+      show(tabs, host); show(hero, host && src === 'taste'); show(genres, host && src === 'genres'); show(list, src === 'list');
+      show(themesLabel, host && src !== 'list'); show(themes, host && src !== 'list'); show(opts, host); show(launch, host); show(why, host);
+      // Pas assez de quoi tirer : le bouton reste grisé, avec la raison.
+      const n = rouletteList.films.length;
+      const blocked = src === 'genres' && !rouletteOpts.genres.length ? T('Choisis au moins un genre.')
+        : src === 'list' && n < 2 ? T('Ajoutez au moins 2 films à la liste.') : '';
+      launch.disabled = !!blocked;
+      why.textContent = blocked;
       launch.textContent = '';
       launch.append(art('wheel', 32), make('span', null, T('Lancer !')));
     };
-    const go = () => { sfx('win'); launchRoulette(); };
+    pickerRefresh = refresh;
+    const go = () => { if (launch.disabled) return; sfx('win'); launchRoulette(); };
     launch.onclick = go;
     hero.ondblclick = go;
     const bgs = make('div', 'wt-bgs');
@@ -1564,8 +1770,157 @@
       };
       bgs.append(b);
     });
-    body.append(hero, make('div', 'wt-themes-label', T('Envie d\'un thème ? (facultatif)')), themes, opts, launch, bgs);
+    body.append(tabs, hero, genres, list, themesLabel, themes, opts, launch, why, bgs);
     refresh();
+  }
+
+  // ---- Notre liste : tout le salon y ajoute des films ; l'hôte la garde et la renvoie à chacun ----
+  const GENRES = Object.keys(GENRE_FR);
+  const CINEMETA = 'https://v3-cinemeta.strem.io';
+  const rouletteList = { films: [], max: 50, host: false, known: false };
+  let pickerRefresh = null, listRender = null, listAsked = 0, addedAt = 0;
+  function rouletteListUpdate(msg) {
+    rouletteList.films = (msg.films || []).filter(f => f && /^tt\d+$/.test(f.id)).slice(0, 100);
+    rouletteList.max = msg.max || 50;
+    rouletteList.host = !!msg.host;
+    rouletteList.known = true;
+    // Les avertissements ne concernent que celui qui vient d'ajouter un film.
+    if (msg.note && Date.now() - addedAt < 15000) toast(msg.note === 'full' ? T('La liste est pleine ({0} films).', rouletteList.max) : T('Film introuvable dans le catalogue de Stremio.'), 5000);
+    if (listRender) listRender();
+    if (pickerRefresh && rouletteEl && rouletteEl.classList.contains('picker')) pickerRefresh();
+    if (panelOpen) renderPanel();
+  }
+  const inList = id => rouletteList.films.some(f => f.id === id);
+  const addToList = id => { addedAt = Date.now(); sfx('select'); toNode({ type: 'roulette-list-add', id }); };
+  const removeFromList = id => { sfx('out'); toNode({ type: 'roulette-list-remove', id }); };
+  async function cinemeta(path) {
+    try { const r = await fetch(CINEMETA + path); return r.ok ? await r.json() : null; } catch (e) { return null; }
+  }
+
+  function rouletteListPane(host) {
+    const pane = make('div', 'wt-list');
+    const search = make('input', 'wt-search');
+    search.type = 'search';
+    search.placeholder = T('Chercher un film à ajouter…');
+    search.autocomplete = 'off';
+    const results = make('div', 'wt-results');
+    const preview = make('div', 'wt-preview');
+    const head = make('div', 'wt-list-head');
+    const grid = make('div', 'wt-list-grid');
+    pane.append(search, results, preview, head, grid);
+    let timer = 0, seq = 0, shownId = null, drawn = false;
+
+    // Recherche dans le catalogue de Stremio, un instant après la dernière touche.
+    search.oninput = () => {
+      clearTimeout(timer);
+      const q = search.value.trim();
+      if (q.length < 2) { results.textContent = ''; return; }
+      timer = setTimeout(async () => {
+        const mine = ++seq;
+        results.textContent = '';
+        results.append(make('div', 'wt-hint', T('Recherche…')));
+        const res = await cinemeta('/catalog/movie/top/search=' + encodeURIComponent(q) + '.json');
+        if (mine !== seq) return;
+        results.textContent = '';
+        const metas = ((res && res.metas) || []).filter(m => m && /^tt\d+$/.test(m.id)).slice(0, 12);
+        if (!metas.length) { results.append(make('div', 'wt-hint', T('Aucun film trouvé.'))); return; }
+        metas.forEach(m => {
+          const c = make('button', 'wt-res' + (inList(m.id) ? ' in' : ''));
+          c.dataset.id = m.id;
+          const pic = make('div', 'wt-res-pic');
+          if (posterUrl(m)) pic.style.backgroundImage = 'url("' + posterUrl(m) + '")';
+          c.append(pic, make('span', 'wt-res-name', m.name || m.id), make('span', 'wt-res-year', String(m.releaseInfo || m.year || '').slice(0, 4)));
+          c.onclick = () => showPreview(m);
+          let hover = 0;
+          c.onmouseenter = () => { hover = setTimeout(() => showPreview(m), 350); };
+          c.onmouseleave = () => clearTimeout(hover);
+          results.append(c);
+        });
+      }, 350);
+    };
+
+    // Prévisu d'un film : affiche, année, note, durée, genres, résumé, bande-annonce, et le bouton pour l'ajouter.
+    async function showPreview(m) {
+      if (shownId === m.id && preview.classList.contains('on')) return;
+      shownId = m.id;
+      results.querySelectorAll('.wt-res').forEach(r => r.classList.toggle('sel', r.dataset.id === m.id));
+      draw(m, null);
+      const res = await cinemeta('/meta/movie/' + m.id + '.json');
+      if (shownId === m.id) draw(m, res && res.meta);
+    }
+    function draw(m, full) {
+      const f = Object.assign({}, m, full || {});
+      preview.textContent = '';
+      preview.classList.add('on');
+      const pic = make('div', 'wt-prev-pic');
+      if (posterUrl(f)) pic.style.backgroundImage = 'url("' + posterUrl(f) + '")';
+      const info = make('div', 'wt-prev-info');
+      const year = String(f.year || f.releaseInfo || '').slice(0, 4);
+      info.append(make('div', 'wt-prev-name', (f.name || f.id) + (year ? ' (' + year + ')' : '')));
+      const facts = [f.imdbRating ? '★ ' + f.imdbRating + ' IMDb' : '', f.runtime || '', (f.genres || []).slice(0, 3).map(genreName).join(', ')].filter(Boolean);
+      if (facts.length) info.append(make('div', 'wt-prev-meta', facts.join(' · ')));
+      info.append(make('div', 'wt-prev-desc', full ? (f.description || T('Pas de résumé.')) : T('Chargement…')));
+      const btns = make('div', 'wt-prev-btns');
+      const add = make('button', 'wt-prev-add');
+      const sync = () => {
+        add.textContent = '';
+        const there = inList(f.id), full2 = rouletteList.films.length >= rouletteList.max;
+        add.append(make('span', null, there ? T('✓ Dans la liste') : full2 ? T('Liste pleine') : T('+ Ajouter à la liste')));
+        add.disabled = there || full2;
+        add.classList.toggle('done', there);
+      };
+      add.onclick = () => { addToList(f.id); add.disabled = true; add.textContent = T('Ajout…'); };
+      add.wtSync = sync;
+      sync();
+      btns.append(add);
+      const yt = ((f.trailerStreams || []).find(t => t && /^[A-Za-z0-9_-]{11}$/.test(t.ytId)) || {}).ytId;
+      if (yt) { const tr = make('button', 'wt-prev-trailer', T('▶ Bande-annonce')); tr.onclick = () => toNode({ type: 'roulette-trailer', yt }); btns.append(tr); }
+      info.append(btns);
+      preview.append(pic, info);
+    }
+
+    // La liste du salon, en petites affiches ; chacun peut retirer un film, l'hôte peut tout vider.
+    function render() {
+      // Sélecteur fermé ou remplacé : on arrête de redessiner cette liste (pas au tout premier dessin, avant son ajout à la page).
+      if (drawn && !pane.isConnected) { if (listRender === render) listRender = null; return; }
+      drawn = true;
+      head.textContent = '';
+      const n = rouletteList.films.length;
+      head.append(make('span', 'wt-list-title', T('Notre liste ({0}/{1})', n, rouletteList.max)));
+      if (host && n) {
+        const clear = make('button', 'wt-list-clear', T('Vider'));
+        let armed = false;
+        clear.onclick = () => {
+          if (!armed) { armed = true; clear.textContent = T('Sûr ? Vider la liste'); setTimeout(() => { armed = false; clear.textContent = T('Vider'); }, 3000); return; }
+          sfx('out'); toNode({ type: 'roulette-list-clear' });
+        };
+        head.append(clear);
+      }
+      grid.textContent = '';
+      if (!rouletteList.known && Date.now() - listAsked > 4000)
+        grid.append(make('div', 'wt-hint', T('L\'hôte doit avoir la dernière version de StremioWT pour utiliser la liste.')));
+      else if (!n) grid.append(make('div', 'wt-hint', T('La liste est vide : cherchez un film et ajoutez-le. Tout le salon peut en ajouter.')));
+      rouletteList.films.forEach(f => {
+        const t = make('div', 'wt-tile');
+        const pic = make('div', 'wt-tile-pic');
+        if (posterUrl(f)) pic.style.backgroundImage = 'url("' + posterUrl(f) + '")';
+        const x = make('button', 'wt-tile-x', '✕');
+        x.title = T('Retirer de la liste');
+        x.onclick = e => { e.stopPropagation(); removeFromList(f.id); };
+        t.append(pic, x, make('span', 'wt-tile-name', f.name + (f.year ? ' (' + f.year + ')' : '')));
+        if (f.by) t.append(make('span', 'wt-tile-by', T('par {0}', f.by)));
+        t.onclick = () => showPreview({ id: f.id, name: f.name, poster: f.poster, year: f.year });
+        grid.append(t);
+      });
+      results.querySelectorAll('.wt-res').forEach(r => r.classList.toggle('in', inList(r.dataset.id)));
+      const add = preview.querySelector('.wt-prev-add');
+      if (add && add.wtSync) add.wtSync();
+    }
+    listRender = render;
+    render();
+    // Sans réponse (hôte en ancienne version), on le dit au bout de quelques secondes.
+    setTimeout(() => { if (!rouletteList.known && listRender === render) render(); }, 4500);
+    return pane;
   }
 
 
@@ -1651,8 +2006,12 @@
     const common = (msg.common || []).slice(0, 3).map(genreName);
     const sub = make('div', 'wt-r-sub wt-r-subicons');
     if (msg.battle) sub.append(artLabel('swords', 20, T('Battle royale : 3 tirages, puis on élimine jusqu\'au dernier')));
-    if (mode && msg.mode !== 'classic') sub.append(artLabel(MODE_ART[msg.mode], 20, T(mode[1])));
-    else sub.append(make('span', null, common.length ? T('Vos goûts communs : {0}', common.join(', ')) : T('Films populaires du moment (pas assez d\'historique pour connaître vos goûts)')));
+    if (msg.source === 'list') sub.append(artLabel('list', 20, T('Tiré au sort dans votre liste')));
+    else {
+      if (mode && msg.mode !== 'classic') sub.append(artLabel(MODE_ART[msg.mode], 20, T(mode[1])));
+      if (msg.source === 'genres') sub.append(make('span', null, T('Genres choisis : {0}', (msg.common || []).slice(0, 4).map(genreName).join(', '))));
+      else if (!mode || msg.mode === 'classic') sub.append(make('span', null, common.length ? T('Vos goûts communs : {0}', common.join(', ')) : T('Films populaires du moment (pas assez d\'historique pour connaître vos goûts)')));
+    }
     body.append(sub);
     const compat = (msg.compat || []).slice(0, 3).map(c => T('{0} et {1} : {2} % compatibles', c.a, c.b, c.pct));
     if (compat.length) body.append(make('div', 'wt-r-compat', '💞 ' + compat.join(' · ')));
